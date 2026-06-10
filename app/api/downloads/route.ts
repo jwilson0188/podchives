@@ -3,6 +3,9 @@ import { IS_DEMO_MODE } from "@/lib/constants";
 import { hasDatabase } from "@/lib/db";
 import { demoDownloads } from "@/lib/demoData";
 
+// Hits the DB at request time — never prerender this at build time.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   if (IS_DEMO_MODE || !hasDatabase()) {
     return NextResponse.json({ downloads: demoDownloads, demo: true });
