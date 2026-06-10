@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: #111111;
+  color: #e0e0e0;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+::selection {
+  background: rgba(255, 61, 0, 0.3);
+  color: #fff;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-card border border-border rounded-xl;
+  }
+
+  .card-hover {
+    @apply transition-colors hover:border-border-strong hover:bg-bg-elevated;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-md
+           text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent-hover shadow-glow;
+  }
+  .btn-secondary {
+    @apply btn bg-bg-elevated text-text-primary border border-border hover:bg-bg-card hover:border-border-strong;
+  }
+  .btn-ghost {
+    @apply btn text-text-muted hover:text-text-primary hover:bg-bg-elevated;
+  }
+  .btn-danger {
+    @apply btn bg-danger-muted text-danger hover:bg-danger hover:text-white;
+  }
+
+  .input {
+    @apply w-full bg-bg-subtle border border-border rounded-md px-3 py-2 text-sm
+           text-text-primary placeholder:text-text-muted
+           focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60
+           transition-colors;
+  }
+
+  .label {
+    @apply block text-xs uppercase tracking-wider text-text-muted mb-1.5 font-medium;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium
+           uppercase tracking-wider;
+  }
+
+  .table-row {
+    @apply border-b border-border hover:bg-bg-elevated/50 transition-colors;
+  }
+
+  .terminal-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+}

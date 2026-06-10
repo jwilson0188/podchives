@@ -1,0 +1,234 @@
+// Podchives database schema
+// PostgreSQL — pgvector recommended for semantic search.
+// Run `prisma db push` against a Supabase / local Postgres instance.
+//
+// pgvector enable (once):
+//   CREATE EXTENSION IF NOT EXISTS vector;
+//
+// Embedding column is left as Unsupported() so prisma generates types
+// while still allowing raw SQL for vector ops in /lib/search.ts.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model Podcast {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  coverImageUrl   String?  @map("cover_image_url")
+  officialUrl     String?  @map("official_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  sources            Source[]
+  episodes           Episode[]
+  transcriptSegments TranscriptSegment[]
+
+  @@map("podcasts")
+}
+
+model Source {
+  id           String    @id @default(cuid())
+  podcastId    String    @map("podcast_id")
+  sourceType   String    @map("source_type") // youtube_channel | youtube_playlist | youtube_video | rss_future | manual_upload_future | patreon_future
+  sourceName   String    @map("source_name")
+  sourceUrl    String    @map("source_url")
+  authRequired Boolean   @default(false) @map("auth_required")
+  lastSyncedAt DateTime? @map("last_synced_at")
+  syncStatus   String    @default("idle") @map("sync_status") // idle | syncing | completed | error
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  podcast        Podcast          @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  episodes       Episode[]
+  syncJobs       SourceSyncJob[]
+  downloads      Download[]
+  processingJobs ProcessingJob[]
+
+  @@index([podcastId])
+  @@map("sources")
+}
+
+model SourceSyncJob {
+  id              String    @id @default(cuid())
+  sourceId        String    @map("source_id")
+  status          String    @default("queued") // queued | running | completed | failed
+  episodesFound   Int       @default(0) @map("episodes_found")
+  episodesAdded   Int       @default(0) @map("episodes_added")
+  episodesUpdated Int       @default(0) @map("episodes_updated")
+  errorMessage    String?   @map("error_message")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@map("source_sync_jobs")
+}
+
+model Episode {
+  id                   String   @id @default(cuid())
+  podcastId            String   @map("podcast_id")
+  sourceId             String   @map("source_id")
+  externalId           String   @map("external_id") // e.g. YouTube video id
+  episodeTitle         String   @map("episode_title")
+  episodeNumber        Int?     @map("episode_number")
+  sourceUrl            String   @map("source_url")
+  sourcePlatform       String   @map("source_platform") // youtube | rss | manual | patreon
+  publishDate          DateTime? @map("publish_date")
+  durationSeconds      Int?     @map("duration_seconds")
+  thumbnailOriginalUrl String?  @map("thumbnail_original_url")
+  thumbnailLocalPath   String?  @map("thumbnail_local_path")
+  rawFilePath          String?  @map("raw_file_path")
+  audioFilePath        String?  @map("audio_file_path")
+  transcriptStatus     String   @default("queued") @map("transcript_status")
+  embeddingStatus      String   @default("queued") @map("embedding_status")
+  processingStatus     String   @default("queued") @map("processing_status")
+  isSearchable         Boolean  @default(false) @map("is_searchable")
+  isTranscribed        Boolean  @default(false) @map("is_transcribed")
+  isEmbedded           Boolean  @default(false) @map("is_embedded")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  podcast            Podcast             @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  source             Source              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  transcriptSegments TranscriptSegment[]
+  downloads          Download[]
+  processingJobs     ProcessingJob[]
+
+  @@unique([sourceId, externalId])
+  @@index([podcastId])
+  @@index([processingStatus])
+  @@map("episodes")
+}
+
+model Download {
+  id              String    @id @default(cuid())
+  sourceId        String    @map("source_id")
+  episodeId       String    @map("episode_id")
+  downloadType    String    @map("download_type") // audio | video | thumbnail
+  status          String    @default("queued")
+  progressPercent Int       @default(0) @map("progress_percent")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  errorMessage    String?   @map("error_message")
+  filePath        String?   @map("file_path")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  source  Source  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId])
+  @@index([status])
+  @@map("downloads")
+}
+
+model ProcessingJob {
+  id              String    @id @default(cuid())
+  sourceId        String?   @map("source_id")
+  episodeId       String?   @map("episode_id")
+  jobType         String    @map("job_type") // source_sync | thumbnail_cache | download | audio_extract | transcription | transcript_segmentation | embedding | indexing
+  status          String    @default("queued")
+  progressPercent Int       @default(0) @map("progress_percent")
+  workerId        String?   @map("worker_id")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  retryCount      Int       @default(0) @map("retry_count")
+  errorMessage    String?   @map("error_message")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  source  Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  episode Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([episodeId])
+  @@index([jobType, status])
+  @@map("processing_jobs")
+}
+
+model TranscriptSegment {
+  id                   String   @id @default(cuid())
+  podcastId            String   @map("podcast_id")
+  episodeId            String   @map("episode_id")
+  startTimeSeconds     Float    @map("start_time_seconds")
+  endTimeSeconds       Float    @map("end_time_seconds")
+  transcriptText       String   @map("transcript_text")
+  // pgvector column — managed via raw SQL migration. Type left as Unsupported
+  // so Prisma generates the model but we drive vector ops manually in /lib/search.ts.
+  transcriptEmbedding  Unsupported("vector(1536)")? @map("transcript_embedding")
+  confidenceScore      Float?   @map("confidence_score")
+  sourceUrl            String   @map("source_url")
+  sourcePlatform       String   @map("source_platform")
+  transcriptSourceType String   @map("transcript_source_type") // whisper_local | whisper_api | youtube_captions | manual
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  podcast Podcast @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId])
+  @@index([podcastId])
+  @@map("transcript_segments")
+}
+
+model SearchQuery {
+  id          String   @id @default(cuid())
+  queryText   String   @map("query_text")
+  filtersUsed String?  @map("filters_used")
+  resultCount Int      @default(0) @map("result_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("search_queries")
+}
+
+model WorkerRun {
+  id            String    @id @default(cuid())
+  workerName    String    @map("worker_name")
+  jobsProcessed Int       @default(0) @map("jobs_processed")
+  startedAt     DateTime  @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  status        String    @default("running") // running | completed | failed
+  logs          String?
+
+  @@index([startedAt])
+  @@map("worker_runs")
+}
+
+model SchedulerSettings {
+  id                String   @id @default(cuid())
+  overnightEnabled  Boolean  @default(false) @map("overnight_enabled")
+  startTime         String   @default("02:00") @map("start_time")
+  maxJobsPerRun     Int      @default(3) @map("max_jobs_per_run")
+  retryFailedJobs   Boolean  @default(true) @map("retry_failed_jobs")
+  concurrentWorkers Int      @default(1) @map("concurrent_workers")
+  computeLimit      Int      @default(200) @map("compute_limit") // minutes per month
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("scheduler_settings")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  plan      String   @default("free") // free | pro | team
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}

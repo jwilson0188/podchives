@@ -1,0 +1,277 @@
+/**
+ * Main processing worker — the dispatcher.
+ *
+ * Pulls the next queued job and routes it to the right worker by jobType.
+ * One concurrent job per worker process; run multiple processes for
+ * parallelism (each gets a unique workerId).
+ *
+ * Lifecycle is logged into worker_runs so the UI can show worker history.
+ */
+import os from "node:os";
+import {
+  getNextQueuedJob,
+  markJobFailed,
+  updateJobStatus,
+} from "@/lib/queue";
+import { runSourceSyncJob } from "./youtubeIngestWorker";
+import {
+  runSegmentationJob,
+  runTranscriptionJob,
+} from "./transcriptionWorker";
+import { runEmbeddingJob, runIndexingJob } from "./embeddingWorker";
+import {
+  cacheThumbnail,
+  downloadAudio,
+  extractAudioIfNeeded,
+} from "@/lib/youtube";
+
+export const DEFAULT_WORKER_ID = `worker-${os.hostname()}-${process.pid}`;
+
+export type ProcessOnceResult = {
+  jobId: string;
+  jobType: string;
+  status: "completed" | "failed" | "skipped";
+  error?: string;
+};
+
+export async function processOnce(
+  workerId = DEFAULT_WORKER_ID,
+): Promise<ProcessOnceResult | null> {
+  const job = await getNextQueuedJob(workerId);
+  if (!job) return null;
+
+  try {
+    switch (job.job_type as string) {
+      case "source_sync":
+        if (!job.source_id) throw new Error("source_sync job missing source_id");
+        await runSourceSyncJob(job.id, job.source_id);
+        break;
+
+      case "thumbnail_cache":
+        await runThumbnailCacheJob(job.id, job.episode_id);
+        break;
+
+      case "download":
+        await runDownloadJob(job.id, job.episode_id);
+        break;
+
+      case "audio_extract":
+        if (!job.episode_id)
+          throw new Error("audio_extract job missing episode_id");
+        await runAudioExtractJob(job.id, job.episode_id);
+        break;
+
+      case "transcription":
+        if (!job.episode_id)
+          throw new Error("transcription job missing episode_id");
+        await runTranscriptionJob(job.id, job.episode_id);
+        break;
+
+      case "transcript_segmentation":
+        if (!job.episode_id)
+          throw new Error("transcript_segmentation job missing episode_id");
+        await runSegmentationJob(job.id, job.episode_id);
+        break;
+
+      case "embedding":
+        if (!job.episode_id)
+          throw new Error("embedding job missing episode_id");
+        await runEmbeddingJob(job.id, job.episode_id);
+        break;
+
+      case "indexing":
+        if (!job.episode_id)
+          throw new Error("indexing job missing episode_id");
+        await runIndexingJob(job.id, job.episode_id);
+        break;
+
+      default:
+        throw new Error(`Unknown jobType: ${job.job_type}`);
+    }
+
+    return {
+      jobId: job.id,
+      jobType: job.job_type,
+      status: "completed",
+    };
+  } catch (err: any) {
+    const message = err?.message ?? "Unknown worker error";
+    try {
+      await markJobFailed(job.id, message);
+    } catch {
+      // ignored — surface the original error
+    }
+    return {
+      jobId: job.id,
+      jobType: job.job_type,
+      status: "failed",
+      error: message,
+    };
+  }
+}
+
+async function runThumbnailCacheJob(jobId: string, episodeId: string | null) {
+  if (!episodeId) throw new Error("thumbnail_cache missing episode_id");
+  const { getDb } = await import("@/lib/db");
+  const { markJobCompleted } = await import("@/lib/queue");
+  const db = getDb();
+
+  const ep = await db.episode.findUnique({ where: { id: episodeId } });
+  if (!ep) throw new Error(`Episode ${episodeId} not found`);
+  if (!ep.thumbnailOriginalUrl) {
+    await markJobCompleted(jobId);
+    return;
+  }
+  await updateJobStatus(jobId, "running", { progressPercent: 10 });
+  const localPath = await cacheThumbnail(ep.id, ep.thumbnailOriginalUrl);
+  await db.episode.update({
+    where: { id: episodeId },
+    data: { thumbnailLocalPath: localPath },
+  });
+  await markJobCompleted(jobId);
+}
+
+async function runDownloadJob(jobId: string, episodeId: string | null) {
+  if (!episodeId) throw new Error("download missing episode_id");
+  const { getDb } = await import("@/lib/db");
+  const { markJobCompleted } = await import("@/lib/queue");
+  const db = getDb();
+
+  const ep = await db.episode.findUnique({ where: { id: episodeId } });
+  if (!ep) throw new Error(`Episode ${episodeId} not found`);
+
+  await updateJobStatus(jobId, "downloading", { progressPercent: 10 });
+
+  // Track the download row up-front so the UI shows progress immediately.
+  const dl = await db.download.create({
+    data: {
+      sourceId: ep.sourceId,
+      episodeId: ep.id,
+      downloadType: "audio",
+      status: "downloading",
+      progressPercent: 10,
+      startedAt: new Date(),
+    },
+  });
+
+  try {
+    const audioPath = await downloadAudio(ep.id, ep.sourceUrl);
+
+    await db.episode.update({
+      where: { id: episodeId },
+      data: {
+        audioFilePath: audioPath,
+        processingStatus: "downloading",
+      },
+    });
+
+    await db.download.update({
+      where: { id: dl.id },
+      data: {
+        status: "completed",
+        progressPercent: 100,
+        filePath: audioPath,
+        completedAt: new Date(),
+      },
+    });
+
+    await markJobCompleted(jobId);
+  } catch (err: any) {
+    await db.download.update({
+      where: { id: dl.id },
+      data: {
+        status: "failed",
+        errorMessage: err?.message ?? "Download failed",
+        completedAt: new Date(),
+      },
+    });
+    throw err;
+  }
+}
+
+/**
+ * For YouTube sources, `downloadAudio` already produced an .mp3 — this is
+ * a no-op fast-path. For non-YouTube sources or future raw-video uploads,
+ * we run ffmpeg via `extractAudioIfNeeded`.
+ */
+async function runAudioExtractJob(jobId: string, episodeId: string | null) {
+  if (!episodeId) throw new Error("audio_extract missing episode_id");
+  const { getDb } = await import("@/lib/db");
+  const { markJobCompleted } = await import("@/lib/queue");
+  const db = getDb();
+
+  const ep = await db.episode.findUnique({ where: { id: episodeId } });
+  if (!ep) throw new Error(`Episode ${episodeId} not found`);
+  if (!ep.audioFilePath) {
+    throw new Error("audio_extract: episode has no audio_file_path");
+  }
+
+  await updateJobStatus(jobId, "extracting_audio", { progressPercent: 30 });
+  const finalPath = await extractAudioIfNeeded(ep.audioFilePath);
+  if (finalPath !== ep.audioFilePath) {
+    await db.episode.update({
+      where: { id: episodeId },
+      data: { audioFilePath: finalPath },
+    });
+  }
+  await markJobCompleted(jobId);
+}
+
+/**
+ * Drain the queue: keep processing until empty (or maxJobs reached).
+ * Returns a summary of jobs processed.
+ */
+export async function processUntilEmpty(opts: {
+  workerId?: string;
+  maxJobs?: number;
+} = {}): Promise<ProcessOnceResult[]> {
+  const workerId = opts.workerId ?? DEFAULT_WORKER_ID;
+  const maxJobs = opts.maxJobs ?? Number.POSITIVE_INFINITY;
+
+  const { hasDatabase, getDb } = await import("@/lib/db");
+  if (!hasDatabase()) {
+    console.warn("[worker] DATABASE_URL not set — nothing to process.");
+    return [];
+  }
+
+  const db = getDb();
+  const run = await db.workerRun.create({
+    data: { workerName: workerId, startedAt: new Date(), status: "running" },
+  });
+
+  const results: ProcessOnceResult[] = [];
+  try {
+    while (results.length < maxJobs) {
+      const r = await processOnce(workerId);
+      if (!r) break;
+      results.push(r);
+      console.log(
+        `[worker] ${r.jobType} ${r.status}` +
+          (r.error ? ` — ${r.error}` : ""),
+      );
+    }
+    await db.workerRun.update({
+      where: { id: run.id },
+      data: {
+        completedAt: new Date(),
+        jobsProcessed: results.length,
+        status: "completed",
+        logs: results
+          .map((r) => `${r.jobType} ${r.status}${r.error ? ` ${r.error}` : ""}`)
+          .join("\n"),
+      },
+    });
+  } catch (err: any) {
+    await db.workerRun.update({
+      where: { id: run.id },
+      data: {
+        completedAt: new Date(),
+        jobsProcessed: results.length,
+        status: "failed",
+        logs: err?.message ?? String(err),
+      },
+    });
+    throw err;
+  }
+  return results;
+}
