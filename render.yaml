@@ -16,7 +16,11 @@ services:
     plan: starter # $7/mo. Use `free` to test first; free workers sleep.
     region: oregon
     branch: main
-    buildCommand: npm install --include=dev && npx prisma generate && npx tsc --noEmit
+    buildCommand: |
+      apt-get update && apt-get install -y ffmpeg curl
+      curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+      chmod +x /usr/local/bin/yt-dlp
+      npm install --include=dev && npx prisma generate && npx tsc --noEmit
     startCommand: npm run worker
     autoDeploy: true
     envVars:
