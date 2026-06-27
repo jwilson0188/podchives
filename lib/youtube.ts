@@ -36,17 +36,22 @@ export type YouTubeChannel = {
   videos: YouTubeVideo[];
 };
 
-/** Shared flags that reduce YouTube 403s. Cookies still help when these aren't enough. */
+/** Shared flags for yt-dlp. Cookies + a JS runtime are required for reliable
+ * logged-in YouTube downloads as of late 2025 (see Dockerfile / yt-dlp EJS). */
 function buildYtDlpBaseArgs(): string[] {
   const args = [
-    "--no-warnings",
     "--retries",
     "3",
     "--fragment-retries",
     "3",
-    // android + web clients are far less likely to 403 than the default web-only path.
+    // `default` lets yt-dlp choose JS-challenge-capable clients (needed with
+    // cookies). The android client returns truncated formats without a PO token.
     "--extractor-args",
-    "youtube:player_client=android,web",
+    "youtube:player_client=default",
+    // Fetch the EJS challenge-solver lib if it isn't bundled. Harmless when it
+    // already is. Requires a JS runtime (Deno) to be installed.
+    "--remote-components",
+    "ejs:github",
   ];
 
   const cookiesFile = process.env.YOUTUBE_COOKIES_FILE;

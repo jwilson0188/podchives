@@ -7,16 +7,26 @@ FROM node:20-slim
 #   ffmpeg   — audio extraction + chunking + ffprobe (lib/transcription.ts)
 #   python3  — required by the yt-dlp zipapp
 #   curl/ca  — fetch the yt-dlp release binary
+#   unzip    — required by the Deno install script
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
       ffmpeg \
       python3 \
       curl \
       ca-certificates \
+      unzip \
   && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
       -o /usr/local/bin/yt-dlp \
   && chmod a+rx /usr/local/bin/yt-dlp \
   && rm -rf /var/lib/apt/lists/*
+
+# YouTube now requires an external JavaScript runtime to solve its JS
+# challenges (n-param / signature). Without one, format availability is
+# severely limited for logged-in (cookie) sessions, causing
+# "Requested format is not available". Deno is yt-dlp's recommended runtime.
+# See https://github.com/yt-dlp/yt-dlp/wiki/EJS
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
+  && deno --version
 
 WORKDIR /app
 

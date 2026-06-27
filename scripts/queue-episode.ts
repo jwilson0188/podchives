@@ -64,6 +64,10 @@ async function main() {
       isSearchable: false,
       isTranscribed: false,
       isEmbedded: false,
+      // Re-downloading: clear any stale local audio path so the worker's
+      // gating blocks audio_extract/transcription until the fresh download
+      // writes a new path on the machine that actually runs the pipeline.
+      ...(from === "download" ? { audioFilePath: null } : {}),
     },
   });
 
