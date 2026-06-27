@@ -4,6 +4,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { BackfillEstimateCard } from "@/components/usage/BackfillEstimateCard";
 import { COST_MODEL } from "@/lib/constants";
 import type { UsagePayload } from "@/lib/data";
+import { getTranscriptionCostPerMinute, getTranscriptionProviderLabel } from "@/lib/transcriptionConfig";
 import { useLivePoll } from "@/hooks/useLivePoll";
 
 export function UsageLiveBody({
@@ -111,8 +112,8 @@ export function UsageLiveBody({
           <tbody className="divide-y divide-border">
             <CostRow
               stage="Transcription"
-              provider="OpenAI Whisper API"
-              unit={`$${COST_MODEL.whisperUsdPerMinute.toFixed(3)} / minute`}
+              provider={getTranscriptionProviderLabel()}
+              unit={`$${getTranscriptionCostPerMinute().toFixed(4)} / minute (API fallback)`}
               est={`$${usage.transcriptionCostUsd.toFixed(2)}`}
             />
             <CostRow
@@ -136,11 +137,11 @@ export function UsageLiveBody({
           </tbody>
         </table>
         <p className="mt-4 text-[11px] text-text-muted">
-          Measured from real usage: transcription minutes (Whisper bills per
-          audio-minute), embedding tokens (from OpenAI&apos;s reported usage),
-          downloaded audio bytes, and worker wall-clock time. Dollar figures
-          apply OpenAI&apos;s list prices to those real quantities. Episodes
-          processed before metering was added may read low until reprocessed.
+          Measured from real usage: transcription minutes (API fallback when
+          YouTube captions are unavailable), embedding tokens (from OpenAI&apos;s
+          reported usage), downloaded audio bytes, and worker wall-clock time.
+          Dollar figures apply list prices to those quantities. YouTube sources
+          typically use free auto-captions first.
         </p>
       </section>
     </>

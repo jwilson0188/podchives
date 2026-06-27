@@ -1,5 +1,6 @@
 import { COST_MODEL } from "@/lib/constants";
 import type { BackfillEstimate } from "@/lib/data";
+import { getTranscriptionCostPerMinute } from "@/lib/transcriptionConfig";
 import { formatBackfillCostRange, formatUsd } from "@/lib/formatCost";
 
 export function BackfillEstimateCard({
@@ -58,7 +59,7 @@ export function BackfillEstimateCard({
         </div>
         <div className="text-right text-sm font-mono tabular-nums text-text-muted">
           <div>
-            Whisper · {formatUsd(backfill.whisperCostUsd)}
+            Transcription · {formatUsd(backfill.whisperCostUsd)}
           </div>
           <div>
             Embeddings · {formatUsd(backfill.embeddingCostUsd)}
@@ -67,12 +68,12 @@ export function BackfillEstimateCard({
       </div>
 
       <p className="text-[11px] text-text-muted">
-        Based on episode duration in your archive and OpenAI list prices (
-        ${COST_MODEL.whisperUsdPerMinute.toFixed(3)}/min Whisper, $
-        {COST_MODEL.embeddingUsdPer1MTokens.toFixed(2)}/1M embedding tokens).
-        Range reflects ±{Math.round(COST_MODEL.backfillCostVariance * 100)}%
-        variance in length and transcript size. Does not include Render worker
-        hosting (~$7/mo).
+        Based on episode duration in your archive. YouTube sources use free
+        auto-captions first; Groq Whisper API fallback is $
+        {getTranscriptionCostPerMinute().toFixed(4)}/min. Embeddings: $
+        {COST_MODEL.embeddingUsdPer1MTokens.toFixed(2)}/1M tokens. Range ±
+        {Math.round(COST_MODEL.backfillCostVariance * 100)}%. Does not include
+        Render hosting (~$7/mo).
       </p>
     </section>
   );

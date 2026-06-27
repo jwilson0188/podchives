@@ -87,7 +87,7 @@ function buildYtDlpBaseArgs(): string[] {
   return args;
 }
 
-function runYtDlp(args: string[]): Promise<string> {
+export function runYtDlp(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const fullArgs = [...buildYtDlpBaseArgs(), ...args];
     const child = spawn("yt-dlp", fullArgs, {

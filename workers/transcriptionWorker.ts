@@ -1,24 +1,17 @@
 /**
  * Transcription worker.
  *
- * Handles two job types as separate steps so the queue UI can show progress
- * cleanly and so each step can be retried independently:
- *
- *   - `transcription`            → Whisper API call, stores Whisper-native
- *                                  segments verbatim, marks isTranscribed.
- *   - `transcript_segmentation`  → re-packs the existing segments into
- *                                  embedding-friendly ~30s chunks.
- *
- * If you only need the simple path (transcribe + segment in one job),
- * `transcribeEpisode` in lib/transcription does it.
+ *   - `transcription`           → YouTube captions (free) or Groq/OpenAI Whisper
+ *   - `transcript_segmentation` → re-pack segments into ~30s embedding chunks
  */
 import {
   markEpisodeTranscribed,
+  resolveTranscription,
   saveTranscriptSegments,
   segmentTranscript,
-  transcribeAudio,
   type TranscriptSegment,
 } from "@/lib/transcription";
+import { shouldTryYouTubeCaptions } from "@/lib/transcriptionConfig";
 import {
   markJobCompleted,
   markJobFailed,
@@ -36,7 +29,13 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
     await markJobFailed(jobId, msg);
     throw new Error(msg);
   }
-  if (!ep.audioFilePath) {
+  if (!ep.sourceUrl) {
+    const msg = "episode has no source_url";
+    await markJobFailed(jobId, msg);
+    throw new Error(msg);
+  }
+  const captionsOnly = shouldTryYouTubeCaptions(ep.sourcePlatform);
+  if (!ep.audioFilePath && !captionsOnly) {
     const msg = "audio_file_path is empty — run download first";
     await markJobFailed(jobId, msg);
     throw new Error(msg);
@@ -44,24 +43,27 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
 
   try {
     await updateJobStatus(jobId, "transcribing", { progressPercent: 10 });
-    const result = await transcribeAudio(ep.audioFilePath);
+    const resolved = await resolveTranscription({
+      episodeId,
+      audioFilePath: ep.audioFilePath ?? "",
+      sourceUrl: ep.sourceUrl,
+      sourcePlatform: ep.sourcePlatform,
+    });
     await updateJobProgress(jobId, 80);
 
-    // Store Whisper's native segments. Segmentation happens in a follow-up
-    // job so it can be retried/tuned independently.
     await saveTranscriptSegments({
       episodeId,
       podcastId: ep.podcastId,
       sourceUrl: ep.sourceUrl,
       sourcePlatform: ep.sourcePlatform,
-      transcriptSourceType: "whisper_api",
-      segments: result.segments,
+      transcriptSourceType: resolved.transcriptSourceType,
+      segments: resolved.segments,
       replace: true,
     });
 
     await markEpisodeTranscribed(episodeId);
     await markJobCompleted(jobId);
-    return { segments: result.segments.length };
+    return { segments: resolved.segments.length };
   } catch (err: any) {
     await markJobFailed(jobId, err?.message ?? "Transcription failed");
     throw err;
@@ -91,8 +93,6 @@ export async function runSegmentationJob(jobId: string, episodeId: string) {
       throw new Error(msg);
     }
 
-    // Re-pack into ~30s embedding-friendly chunks. Reuse the same packer
-    // from lib/transcription so behaviour is identical.
     const fakeResult = {
       fullText: existing.map((s) => s.transcriptText).join(" "),
       language: null,
@@ -106,13 +106,19 @@ export async function runSegmentationJob(jobId: string, episodeId: string) {
       ),
     };
     const packed = segmentTranscript(fakeResult);
+    const transcriptSourceType =
+      (existing[0]?.transcriptSourceType as
+        | "whisper_api"
+        | "youtube_captions"
+        | "whisper_local"
+        | "manual") ?? "whisper_api";
 
     await saveTranscriptSegments({
       episodeId,
       podcastId: ep.podcastId,
       sourceUrl: ep.sourceUrl,
       sourcePlatform: ep.sourcePlatform,
-      transcriptSourceType: "whisper_api",
+      transcriptSourceType,
       segments: packed,
       replace: true,
     });

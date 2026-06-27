@@ -15,6 +15,7 @@
  * to the server console.
  */
 import { COST_MODEL, IS_DEMO_MODE } from "./constants";
+import { getTranscriptionCostPerMinute, getTranscriptionBackend } from "./transcriptionConfig";
 import { hasDatabase, getDb } from "./db";
 import { resolveThumbnailUrl } from "./utils";
 import {
@@ -618,7 +619,7 @@ export async function getEpisodeUsage(
     if (!e) return null;
     const minutes = (e.durationSeconds ?? 0) / 60;
     const transcriptionCostUsd = e.isTranscribed
-      ? minutes * COST_MODEL.whisperUsdPerMinute
+      ? minutes * getTranscriptionCostPerMinute()
       : 0;
     const embeddingTokens = Math.round((e.durationSeconds ?? 0) * 2.6);
     const embeddingCostUsd =
@@ -646,7 +647,7 @@ export async function getEpisodeUsage(
     });
     if (!e) return null;
     const transcriptionCostUsd = e.isTranscribed
-      ? ((e.durationSeconds ?? 0) / 60) * COST_MODEL.whisperUsdPerMinute
+      ? ((e.durationSeconds ?? 0) / 60) * getTranscriptionCostPerMinute()
       : 0;
     const embeddingCostUsd =
       (e.embeddingTokens / 1_000_000) * COST_MODEL.embeddingUsdPer1MTokens;
@@ -910,7 +911,7 @@ export async function getUsageStats(): Promise<UsageStats> {
       (transcribedDuration._sum.durationSeconds ?? 0) / 60,
     );
     const transcriptionCostUsd =
-      transcriptionMinutes * COST_MODEL.whisperUsdPerMinute;
+      transcriptionMinutes * getTranscriptionCostPerMinute();
 
     const transcriptChars = Number(charRow[0]?.chars ?? 0);
     const embeddingTokens = measured._sum.embeddingTokens ?? 0;
@@ -973,7 +974,19 @@ type BackfillEpisodeRow = {
   durationSeconds: number | null;
   isTranscribed: boolean;
   embeddingTokens: number;
+  sourcePlatform: string;
 };
+
+function backfillTranscriptionRatePerMinute(sourcePlatform: string): number {
+  const backend = getTranscriptionBackend();
+  if (
+    backend === "youtube_captions_then_groq" &&
+    sourcePlatform.toLowerCase() === "youtube"
+  ) {
+    return 0;
+  }
+  return getTranscriptionCostPerMinute(backend);
+}
 
 function computeBackfillEstimate(
   episodes: BackfillEpisodeRow[],
@@ -1003,7 +1016,8 @@ function computeBackfillEstimate(
     remainingSeconds += sec;
 
     if (!e.isTranscribed) {
-      whisperCostUsd += (sec / 60) * COST_MODEL.whisperUsdPerMinute;
+      whisperCostUsd +=
+        (sec / 60) * backfillTranscriptionRatePerMinute(e.sourcePlatform);
     }
 
     const tokens =
@@ -1037,6 +1051,7 @@ export async function getBackfillEstimate(): Promise<BackfillEstimate> {
         durationSeconds: e.durationSeconds ?? null,
         isTranscribed: e.isTranscribed,
         embeddingTokens: Math.round((e.durationSeconds ?? 0) * 2.6),
+        sourcePlatform: e.sourcePlatform,
       })),
       3600,
     );
@@ -1051,6 +1066,7 @@ export async function getBackfillEstimate(): Promise<BackfillEstimate> {
           durationSeconds: true,
           isTranscribed: true,
           embeddingTokens: true,
+          sourcePlatform: true,
         },
       }),
       db.episode.aggregate({
