@@ -3,6 +3,7 @@ import type { SourceView } from "@/lib/data";
 import { formatRelativeDate } from "@/lib/utils";
 import { SyncNowButton } from "./SyncNowButton";
 import { AutoSyncToggle } from "./AutoSyncToggle";
+import { RemoveSourceButton } from "./RemoveSourceButton";
 
 const PLATFORM_LABELS: Record<string, string> = {
   youtube_channel: "YouTube channel",
@@ -32,6 +33,10 @@ export function SourceCard({ source }: { source: SourceView }) {
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="font-semibold truncate">{source.sourceName}</h3>
           <StatusBadge status={source.syncStatus} />
+          <RemoveSourceButton
+            sourceId={source.id}
+            sourceName={source.sourceName}
+          />
         </div>
         <a
           href={source.sourceUrl}

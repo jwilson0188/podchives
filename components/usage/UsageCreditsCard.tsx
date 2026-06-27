@@ -1,14 +1,58 @@
-import Link from "next/link";
-import { demoUsage } from "@/lib/demoData";
+"use client";
 
-export function UsageCreditsCard() {
-  const pct = Math.round(
-    (demoUsage.creditsRemaining / demoUsage.creditsTotal) * 100,
-  );
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import type { UsageStats } from "@/lib/data";
+
+const POLL_MS = 15_000;
+
+export function UsageCreditsCard({ initial }: { initial: UsageStats }) {
+  const [usage, setUsage] = useState<UsageStats>(initial);
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const tick = async () => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const res = await fetch("/api/usage", { cache: "no-store" });
+        if (!res.ok) return;
+        const next = (await res.json()) as UsageStats;
+        if (!cancelled) {
+          setUsage(next);
+          setLive(true);
+        }
+      } catch {
+        // transient — keep the last good value
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const pct =
+    usage.creditsTotal > 0
+      ? Math.round((usage.creditsRemaining / usage.creditsTotal) * 100)
+      : 0;
+
   return (
     <div className="card p-5 flex flex-col">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="font-semibold tracking-tight">Compute / Usage</h2>
+        <h2 className="font-semibold tracking-tight flex items-center gap-2">
+          Compute / Usage
+          <span
+            className={`inline-block w-1.5 h-1.5 rounded-full ${
+              live ? "bg-success animate-pulse" : "bg-text-dim"
+            }`}
+            title={live ? "Live" : "Loading…"}
+          />
+        </h2>
         <Link
           href="/usage"
           className="text-xs text-accent hover:text-accent-hover"
@@ -16,17 +60,15 @@ export function UsageCreditsCard() {
           Details →
         </Link>
       </div>
-      <div className="text-xs text-text-muted mb-4">
-        {demoUsage.monthLabel}
-      </div>
+      <div className="text-xs text-text-muted mb-4">{usage.monthLabel}</div>
 
       <div className="mb-4">
         <div className="flex items-baseline justify-between">
           <div className="text-3xl font-semibold tabular-nums">
-            {demoUsage.creditsRemaining}
+            {usage.creditsRemaining}
             <span className="text-sm text-text-muted font-normal">
               {" "}
-              / {demoUsage.creditsTotal}
+              / {usage.creditsTotal}
             </span>
           </div>
           <div className="text-[11px] uppercase tracking-widest text-text-muted">
@@ -35,7 +77,7 @@ export function UsageCreditsCard() {
         </div>
         <div className="mt-2 h-1.5 rounded-full bg-bg-elevated overflow-hidden">
           <div
-            className="h-full bg-accent rounded-full"
+            className="h-full bg-accent rounded-full transition-all duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -45,19 +87,21 @@ export function UsageCreditsCard() {
         <div className="flex items-center justify-between">
           <dt className="text-text-muted">Transcription</dt>
           <dd className="font-mono tabular-nums">
-            {demoUsage.transcriptionMinutes} min · ${demoUsage.transcriptionCostUsd.toFixed(2)}
+            {usage.transcriptionMinutes} min · $
+            {usage.transcriptionCostUsd.toFixed(2)}
           </dd>
         </div>
         <div className="flex items-center justify-between">
           <dt className="text-text-muted">Embeddings</dt>
           <dd className="font-mono tabular-nums">
-            {(demoUsage.embeddingTokens / 1000).toFixed(1)}K tok · ${demoUsage.embeddingCostUsd.toFixed(2)}
+            {(usage.embeddingTokens / 1000).toFixed(1)}K tok · $
+            {usage.embeddingCostUsd.toFixed(2)}
           </dd>
         </div>
         <div className="flex items-center justify-between">
           <dt className="text-text-muted">Storage</dt>
           <dd className="font-mono tabular-nums">
-            {(demoUsage.storageBytes / 1_000_000_000).toFixed(2)} GB
+            {(usage.storageBytes / 1_000_000_000).toFixed(2)} GB
           </dd>
         </div>
       </dl>

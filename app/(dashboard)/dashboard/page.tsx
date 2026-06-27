@@ -12,6 +12,7 @@ import {
   getDashboardStats,
   getRecentEpisodes,
   getRecentSearches,
+  getUsageStats,
 } from "@/lib/data";
 import { formatDate, formatDuration, formatRelativeDate } from "@/lib/utils";
 
@@ -22,13 +23,14 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function DashboardPage() {
-  const [stats, recentEpisodes, activeJobs, recentSearches, autoSync] =
+  const [stats, recentEpisodes, activeJobs, recentSearches, autoSync, usage] =
     await Promise.all([
       getDashboardStats(),
       getRecentEpisodes(5),
       getActiveProcessingJobs(),
       getRecentSearches(4),
       getAutoSyncSummary(),
+      getUsageStats(),
     ]);
 
   return (
@@ -148,7 +150,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <UsageCreditsCard />
+        <UsageCreditsCard initial={usage} />
       </section>
 
       <section className="grid lg:grid-cols-2 gap-4 lg:gap-6">
