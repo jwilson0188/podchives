@@ -185,6 +185,7 @@ export async function getSources(): Promise<SourceView[]> {
         sourceName: s.sourceName,
         sourceUrl: s.sourceUrl,
         authRequired: s.authRequired,
+        autoSync: s.autoSync,
         lastSyncedAt: s.lastSyncedAt?.toISOString() ?? null,
         syncStatus: s.syncStatus as SourceView["syncStatus"],
         episodesFound: s._count.episodes,

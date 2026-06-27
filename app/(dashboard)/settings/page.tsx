@@ -79,8 +79,8 @@ export default function SettingsPage() {
           <SettingRow label="Concurrency" value="1 job at a time" />
           <SettingRow
             label="Auto-sync"
-            value="on — every ~6h"
-            hint="The worker re-checks each source on a schedule, ingests any newly-published videos, and re-queues backlog episodes until the whole channel is processed. No manual re-sync needed."
+            value="per-source — every ~6h"
+            hint="Toggle auto-sync on any source (Sources page). When on, the worker re-checks it on a schedule, ingests newly-published videos, and re-queues backlog episodes until the whole channel is processed."
           />
           <SettingRow
             label="Overnight scheduler"

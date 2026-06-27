@@ -2,6 +2,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { SourceView } from "@/lib/data";
 import { formatRelativeDate } from "@/lib/utils";
 import { SyncNowButton } from "./SyncNowButton";
+import { AutoSyncToggle } from "./AutoSyncToggle";
 
 const PLATFORM_LABELS: Record<string, string> = {
   youtube_channel: "YouTube channel",
@@ -52,7 +53,10 @@ export function SourceCard({ source }: { source: SourceView }) {
           )}
         </div>
       </div>
-      <SyncNowButton sourceId={source.id} />
+      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+        <SyncNowButton sourceId={source.id} />
+        <AutoSyncToggle sourceId={source.id} initial={source.autoSync} />
+      </div>
     </div>
   );
 }

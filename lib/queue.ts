@@ -122,6 +122,7 @@ export async function enqueueDueSourceSyncs(
   const cutoff = new Date(Date.now() - intervalMinutes * 60_000);
   const sources = await db.source.findMany({
     where: {
+      autoSync: true,
       syncStatus: { not: "syncing" },
       OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: cutoff } }],
     },

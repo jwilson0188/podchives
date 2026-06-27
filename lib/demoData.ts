@@ -25,6 +25,7 @@ export type DemoSource = {
   sourceName: string;
   sourceUrl: string;
   authRequired: boolean;
+  autoSync: boolean;
   lastSyncedAt: string | null;
   syncStatus: "idle" | "syncing" | "error" | "completed";
   episodesFound: number;
@@ -142,6 +143,7 @@ export const demoSources: DemoSource[] = [
     sourceName: "The Roundtable — YouTube",
     sourceUrl: "https://www.youtube.com/@theroundtable",
     authRequired: false,
+    autoSync: true,
     lastSyncedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
     syncStatus: "completed",
     episodesFound: 8,

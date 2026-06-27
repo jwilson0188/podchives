@@ -43,6 +43,7 @@ model Source {
   sourceName   String    @map("source_name")
   sourceUrl    String    @map("source_url")
   authRequired Boolean   @default(false) @map("auth_required")
+  autoSync     Boolean   @default(false) @map("auto_sync") // worker re-syncs this source on a schedule
   lastSyncedAt DateTime? @map("last_synced_at")
   syncStatus   String    @default("idle") @map("sync_status") // idle | syncing | completed | error
   createdAt    DateTime  @default(now()) @map("created_at")
