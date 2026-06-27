@@ -55,19 +55,19 @@ export default async function UsagePage() {
         <StatCard
           label="Transcription"
           value={`${usage.transcriptionMinutes.toLocaleString()} min`}
-          hint={`$${usage.transcriptionCostUsd.toFixed(2)} estimated`}
+          hint={`$${usage.transcriptionCostUsd.toFixed(2)} · audio transcribed`}
           accent="cyan"
         />
         <StatCard
           label="Embeddings"
           value={`${(usage.embeddingTokens / 1000).toFixed(1)}K tok`}
-          hint={`$${usage.embeddingCostUsd.toFixed(2)} estimated`}
+          hint={`$${usage.embeddingCostUsd.toFixed(2)} · tokens billed`}
           accent="cyan"
         />
         <StatCard
           label="Storage"
           value={`${(usage.storageBytes / 1_000_000_000).toFixed(2)} GB`}
-          hint="audio + transcripts + thumbnails (est.)"
+          hint="audio downloaded + transcripts (measured)"
         />
         <StatCard
           label="Compute"
@@ -80,7 +80,7 @@ export default async function UsagePage() {
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="font-semibold tracking-tight">Cost model</h2>
           <span className="text-xs text-text-muted font-mono">
-            ${totalCostUsd.toFixed(2)} total est.
+            ${totalCostUsd.toFixed(2)} total
           </span>
         </div>
         <table className="w-full text-sm">
@@ -107,23 +107,24 @@ export default async function UsagePage() {
             />
             <CostRow
               stage="Storage"
-              provider="Local / Supabase / S3"
-              unit="varies"
+              provider="Worker disk (ephemeral) + Postgres"
+              unit="measured"
               est={`${(usage.storageBytes / 1_000_000_000).toFixed(2)} GB`}
             />
             <CostRow
-              stage="Search compute"
-              provider="Self-hosted / Supabase"
-              unit="negligible"
-              est="—"
+              stage="Compute"
+              provider="Render worker"
+              unit="wall-clock"
+              est={`${usage.computeMinutes.toLocaleString()} min`}
             />
           </tbody>
         </table>
         <p className="mt-4 text-[11px] text-text-muted">
-          Numbers are estimates and assume default models — token counts are
-          derived from transcript length and storage from audio duration. For
-          local Whisper or local embeddings, costs go to zero except for
-          compute time.
+          Measured from real usage: transcription minutes (Whisper bills per
+          audio-minute), embedding tokens (from OpenAI&apos;s reported usage),
+          downloaded audio bytes, and worker wall-clock time. Dollar figures
+          apply OpenAI&apos;s list prices to those real quantities. Episodes
+          processed before metering was added may read low until reprocessed.
         </p>
       </section>
     </div>

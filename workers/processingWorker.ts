@@ -8,6 +8,7 @@
  * Lifecycle is logged into worker_runs so the UI can show worker history.
  */
 import os from "node:os";
+import fs from "node:fs";
 import {
   getNextQueuedJob,
   markJobFailed,
@@ -157,11 +158,21 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
   try {
     const audioPath = await downloadAudio(ep.id, ep.sourceUrl);
 
+    // Record the real file size so the Usage page reports measured storage
+    // instead of a bitrate estimate. Files are ephemeral; this number persists.
+    let audioBytes = 0;
+    try {
+      audioBytes = fs.statSync(audioPath).size;
+    } catch {
+      // non-fatal — leave at 0 if we can't stat the file
+    }
+
     await db.episode.update({
       where: { id: episodeId },
       data: {
         audioFilePath: audioPath,
         processingStatus: "downloading",
+        ...(audioBytes > 0 ? { audioBytes } : {}),
       },
     });
 

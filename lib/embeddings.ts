@@ -36,13 +36,28 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 export async function generateEmbeddings(
   texts: string[],
 ): Promise<number[][]> {
-  if (texts.length === 0) return [];
+  const { vectors } = await generateEmbeddingsWithUsage(texts);
+  return vectors;
+}
+
+/**
+ * Batch embed and report the real token usage billed by OpenAI
+ * (`response.usage.total_tokens`) so the Usage page reflects actual spend
+ * rather than a character-count estimate.
+ */
+export async function generateEmbeddingsWithUsage(
+  texts: string[],
+): Promise<{ vectors: number[][]; tokens: number }> {
+  if (texts.length === 0) return { vectors: [], tokens: 0 };
   const c = getClient();
   const resp = await c.embeddings.create({
     model: EMBED_MODEL,
     input: texts,
   });
-  return resp.data.map((d) => d.embedding);
+  return {
+    vectors: resp.data.map((d) => d.embedding),
+    tokens: resp.usage?.total_tokens ?? 0,
+  };
 }
 
 /**
@@ -52,7 +67,7 @@ export async function generateEmbeddings(
 export async function generateSegmentEmbeddings(
   episodeId: string,
   batchSize = 64,
-): Promise<{ embedded: number }> {
+): Promise<{ embedded: number; tokens: number }> {
   const { getDb } = await import("./db");
   const db = getDb();
 
@@ -62,19 +77,21 @@ export async function generateSegmentEmbeddings(
   });
 
   let embedded = 0;
+  let totalTokens = 0;
   for (let i = 0; i < segs.length; i += batchSize) {
     const slice = segs.slice(i, i + batchSize);
-    const vectors = await generateEmbeddings(
+    const { vectors, tokens } = await generateEmbeddingsWithUsage(
       slice.map((s) => s.transcriptText),
     );
+    totalTokens += tokens;
     for (let j = 0; j < slice.length; j++) {
       await saveSegmentEmbedding(slice[j].id, vectors[j]);
       embedded++;
     }
   }
 
-  await markEpisodeEmbedded(episodeId);
-  return { embedded };
+  await markEpisodeEmbedded(episodeId, totalTokens);
+  return { embedded, tokens: totalTokens };
 }
 
 /**
@@ -96,7 +113,10 @@ export async function saveSegmentEmbedding(
   );
 }
 
-export async function markEpisodeEmbedded(episodeId: string): Promise<void> {
+export async function markEpisodeEmbedded(
+  episodeId: string,
+  tokens = 0,
+): Promise<void> {
   const { getDb } = await import("./db");
   const db = getDb();
   await db.episode.update({
@@ -104,6 +124,7 @@ export async function markEpisodeEmbedded(episodeId: string): Promise<void> {
     data: {
       isEmbedded: true,
       embeddingStatus: "completed",
+      ...(tokens > 0 ? { embeddingTokens: tokens } : {}),
     },
   });
 }

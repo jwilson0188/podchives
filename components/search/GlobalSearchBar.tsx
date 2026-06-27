@@ -8,11 +8,13 @@ export function GlobalSearchBar({
   defaultValue = "",
   autoFocus = false,
   placeholder = "Search every transcript, every moment, every show…",
+  archiveId,
 }: {
   size?: "md" | "lg";
   defaultValue?: string;
   autoFocus?: boolean;
   placeholder?: string;
+  archiveId?: string;
 }) {
   const router = useRouter();
   const [q, setQ] = useState(defaultValue);
@@ -21,7 +23,9 @@ export function GlobalSearchBar({
     e.preventDefault();
     const query = q.trim();
     if (!query) return;
-    router.push(`/search?q=${encodeURIComponent(query)}`);
+    const params = new URLSearchParams({ q: query });
+    if (archiveId && archiveId !== "all") params.set("archive", archiveId);
+    router.push(`/search?${params.toString()}`);
   };
 
   const isLg = size === "lg";

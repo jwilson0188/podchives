@@ -1,9 +1,14 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterPanel } from "@/components/search/FilterPanel";
+import { getPodcasts } from "@/lib/data";
 
 export const metadata = { title: "Advanced Search" };
 
-export default function AdvancedSearchPage() {
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export default async function AdvancedSearchPage() {
+  const archives = await getPodcasts();
   return (
     <div>
       <PageHeader
@@ -13,7 +18,7 @@ export default function AdvancedSearchPage() {
       />
 
       <div className="grid lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
-        <FilterPanel />
+        <FilterPanel archives={archives} />
 
         <div className="space-y-5">
           <section className="card p-5">

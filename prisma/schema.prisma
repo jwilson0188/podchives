@@ -93,6 +93,8 @@ model Episode {
   thumbnailLocalPath   String?  @map("thumbnail_local_path")
   rawFilePath          String?  @map("raw_file_path")
   audioFilePath        String?  @map("audio_file_path")
+  audioBytes           Int      @default(0) @map("audio_bytes") // measured at download
+  embeddingTokens      Int      @default(0) @map("embedding_tokens") // real OpenAI usage
   transcriptStatus     String   @default("queued") @map("transcript_status")
   embeddingStatus      String   @default("queued") @map("embedding_status")
   processingStatus     String   @default("queued") @map("processing_status")

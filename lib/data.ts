@@ -504,24 +504,23 @@ export async function getUsageStats(): Promise<UsageStats> {
     const db = getDb();
     const monthStart = startOfCurrentMonth();
 
-    const [transcribedDuration, charRow, audioDuration, thumbCount, settings, runs] =
+    const [transcribedDuration, charRow, measured, settings, runs] =
       await Promise.all([
-        // Whisper bills per minute of transcribed audio.
+        // Whisper bills per minute of transcribed audio (this is the real
+        // billable quantity).
         db.episode.aggregate({
           where: { isTranscribed: true },
           _sum: { durationSeconds: true },
         }),
-        // Total transcript characters → token estimate for embedding cost.
+        // Transcript bytes stored in Postgres (real).
         db.$queryRaw<{ chars: bigint }[]>`
           SELECT COALESCE(SUM(LENGTH(transcript_text)), 0)::bigint AS chars
           FROM transcript_segments
         `,
-        // Downloaded audio (has a file path) → storage size estimate.
+        // Measured usage: real OpenAI embedding tokens + real downloaded bytes.
         db.episode.aggregate({
-          where: { audioFilePath: { not: null } },
-          _sum: { durationSeconds: true },
+          _sum: { embeddingTokens: true, audioBytes: true },
         }),
-        db.episode.count({ where: { thumbnailLocalPath: { not: null } } }),
         db.schedulerSettings.findFirst(),
         // Real worker wall-clock time this month.
         db.workerRun.findMany({
@@ -537,17 +536,14 @@ export async function getUsageStats(): Promise<UsageStats> {
       transcriptionMinutes * COST_MODEL.whisperUsdPerMinute;
 
     const transcriptChars = Number(charRow[0]?.chars ?? 0);
-    const embeddingTokens = Math.round(
-      transcriptChars / COST_MODEL.charsPerToken,
-    );
+    const embeddingTokens = measured._sum.embeddingTokens ?? 0;
     const embeddingCostUsd =
       (embeddingTokens / 1_000_000) * COST_MODEL.embeddingUsdPer1MTokens;
 
-    const audioSeconds = audioDuration._sum.durationSeconds ?? 0;
+    const audioBytes = measured._sum.audioBytes ?? 0;
     const storageBytes =
-      audioSeconds * COST_MODEL.audioBytesPerSecond +
-      transcriptChars + // transcripts ≈ 1 byte/char (UTF-8 ASCII)
-      thumbCount * COST_MODEL.thumbnailBytesEstimate;
+      audioBytes + // real downloaded audio
+      transcriptChars; // transcripts ≈ 1 byte/char (UTF-8 ASCII)
 
     const computeMs = runs.reduce((acc, r) => {
       const end = r.completedAt?.getTime() ?? Date.now();

@@ -1,13 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { demoPodcasts } from "@/lib/demoData";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export function FilterPanel() {
-  const [archive, setArchive] = useState<string>("all");
+export type ArchiveOption = { id: string; name: string };
+
+export function FilterPanel({ archives = [] }: { archives?: ArchiveOption[] }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const archive = searchParams.get("archive") ?? "all";
   const [platform, setPlatform] = useState<string>("all");
   const [dateRange, setDateRange] = useState<string>("all");
   const [searchableOnly, setSearchableOnly] = useState(true);
+
+  // The archive filter is URL-driven so the server component re-runs the
+  // search scoped to that archive. Other filters are cosmetic for now.
+  const setArchive = (next: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("archive");
+    else params.set("archive", next);
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  };
 
   return (
     <aside className="card p-4 sticky top-20">
@@ -36,7 +52,7 @@ export function FilterPanel() {
             onChange={(e) => setArchive(e.target.value)}
           >
             <option value="all">All archives</option>
-            {demoPodcasts.map((p) => (
+            {archives.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>

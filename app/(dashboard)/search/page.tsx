@@ -3,7 +3,7 @@ import { SearchResultCard } from "@/components/search/SearchResultCard";
 import { FilterPanel } from "@/components/search/FilterPanel";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { runSearch } from "@/lib/data";
+import { getPodcasts, runSearch } from "@/lib/data";
 import { saveSearchQuery } from "@/lib/search";
 import { demoSearchResults } from "@/lib/demoData";
 import { IS_DEMO_MODE } from "@/lib/constants";
@@ -16,21 +16,31 @@ export const revalidate = 0;
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: { q?: string };
+  searchParams: { q?: string; archive?: string };
 }) {
   const query = (searchParams.q ?? "").trim();
-  const results = query
-    ? await runSearch(query, { limit: 50 })
-    : IS_DEMO_MODE
-      ? demoSearchResults
-      : [];
+  const archiveId =
+    searchParams.archive && searchParams.archive !== "all"
+      ? searchParams.archive
+      : undefined;
+
+  const [archives, results] = await Promise.all([
+    getPodcasts(),
+    query
+      ? runSearch(query, { limit: 50, archiveId })
+      : Promise.resolve(IS_DEMO_MODE ? demoSearchResults : []),
+  ]);
+
+  const archiveName = archiveId
+    ? archives.find((a) => a.id === archiveId)?.name
+    : undefined;
 
   // Log analytics in real mode. Failures are non-fatal — the search itself
   // already returned, this is just for the Recent Searches panel.
   if (query && !IS_DEMO_MODE) {
     saveSearchQuery({
       query,
-      filters: { limit: 50 },
+      filters: { limit: 50, archiveId },
       resultCount: results.length,
     }).catch(() => {});
   }
@@ -48,6 +58,7 @@ export default async function SearchPage({
           size="lg"
           autoFocus={!query}
           defaultValue={query}
+          archiveId={archiveId}
           placeholder="e.g. 'boring infrastructure'  ·  'open source AI'  ·  exact phrase"
         />
         {query && (
@@ -56,12 +67,19 @@ export default async function SearchPage({
             <span className="text-text-primary">"{query}"</span>{" "}
             <span className="text-text-dim">·</span> {results.length} match
             {results.length === 1 ? "" : "es"}
+            {archiveName && (
+              <>
+                {" "}
+                <span className="text-text-dim">in</span>{" "}
+                <span className="text-cyan">{archiveName}</span>
+              </>
+            )}
           </div>
         )}
       </div>
 
       <div className="grid lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
-        <FilterPanel />
+        <FilterPanel archives={archives} />
 
         <div className="space-y-3">
           {results.length === 0 && query && (
