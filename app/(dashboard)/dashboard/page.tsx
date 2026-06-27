@@ -32,7 +32,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="signal_room // overview"
+        eyebrow="podchives // overview"
         title="Dashboard"
         description="Your archive at a glance — search, ingestion, transcription, indexing."
       />

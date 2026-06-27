@@ -72,6 +72,7 @@ export default async function EpisodeDetailPage({
 
       <TranscriptViewer
         episodeTitle={ep.episodeTitle}
+        podcastName={podcast.name}
         sourceUrl={ep.sourceUrl}
         thumbnailUrl={ep.thumbnailUrl}
         segments={segments}

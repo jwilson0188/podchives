@@ -120,13 +120,13 @@ export type DemoSearchHistory = {
 
 export const demoPodcast: DemoPodcast = {
   id: "pod_1",
-  name: "The Signal Room",
-  slug: "the-signal-room",
+  name: "The Roundtable",
+  slug: "the-roundtable",
   description:
     "Long-form interviews and livestreams about technology, media, and the people building both.",
   coverImageUrl:
     "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-  officialUrl: "https://www.youtube.com/@thesignalroom",
+  officialUrl: "https://www.youtube.com/@theroundtable",
   episodeCount: 8,
   searchableCount: 5,
   lastSyncedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
@@ -139,8 +139,8 @@ export const demoSources: DemoSource[] = [
     id: "src_1",
     podcastId: "pod_1",
     sourceType: "youtube_channel",
-    sourceName: "The Signal Room — YouTube",
-    sourceUrl: "https://www.youtube.com/@thesignalroom",
+    sourceName: "The Roundtable — YouTube",
+    sourceUrl: "https://www.youtube.com/@theroundtable",
     authRequired: false,
     lastSyncedAt: new Date(Date.now() - 1000 * 60 * 42).toISOString(),
     syncStatus: "completed",
@@ -422,7 +422,7 @@ export const demoSearchHistory: DemoSearchHistory[] = [
   {
     id: "sh_1",
     queryText: "boring infrastructure",
-    filtersUsed: "archive: The Signal Room",
+    filtersUsed: "archive: The Roundtable",
     resultCount: 4,
     createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
   },

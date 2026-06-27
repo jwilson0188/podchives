@@ -7,12 +7,14 @@ import { formatTimestamp, highlight } from "@/lib/utils";
 
 export function TranscriptViewer({
   episodeTitle,
+  podcastName,
   sourceUrl,
   thumbnailUrl,
   segments,
   initialSeconds = 0,
 }: {
   episodeTitle: string;
+  podcastName: string;
   sourceUrl: string;
   thumbnailUrl: string;
   segments: DemoTranscriptSegment[];
@@ -54,7 +56,7 @@ export function TranscriptViewer({
             Source attribution
           </div>
           <div className="space-y-1.5 text-sm font-mono">
-            <Row label="podcast" value="The Signal Room" />
+            <Row label="podcast" value={podcastName} />
             <Row label="episode" value={episodeTitle} />
             <Row
               label="source"

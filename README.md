@@ -77,7 +77,7 @@ Either use the UI: open `/sources` → paste a URL → click **Add source** → 
 
 Or one-shot from the CLI:
 ```bash
-npm run sync-source -- "https://www.youtube.com/@thesignalroom"
+npm run sync-source -- "https://www.youtube.com/@channelname"
 ```
 
 ### 5. Run the worker

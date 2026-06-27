@@ -80,7 +80,7 @@ http://localhost:3000/sources  →  paste URL  →  Add source
 Or one-shot from the CLI:
 
 ```bash
-npm run sync-source -- "https://www.youtube.com/@thesignalroom"
+npm run sync-source -- "https://www.youtube.com/@channelname"
 ```
 
 Both paths do the same thing: upsert a `podcast` row, create a `source` row, enqueue a `source_sync` job. The CLI version also runs the sync inline so episodes appear immediately in `/episodes`.

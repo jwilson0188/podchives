@@ -63,7 +63,7 @@ export default function AdvancedSearchPage() {
             <ul className="space-y-2 text-sm text-text-muted font-mono">
               <li>
                 <span className="text-cyan">topic:</span> infrastructure{" "}
-                <span className="text-cyan">archive:</span> "The Signal Room"
+                <span className="text-cyan">archive:</span> "The Roundtable"
               </li>
               <li>
                 <span className="text-cyan">phrase:</span> "search becomes a

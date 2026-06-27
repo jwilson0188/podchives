@@ -9,7 +9,7 @@ const TYPE_OPTIONS: { value: SourceType; label: string; hint: string }[] = [
   {
     value: "youtube_channel",
     label: "YouTube channel",
-    hint: "https://www.youtube.com/@thesignalroom",
+    hint: "https://www.youtube.com/@channelname",
   },
   {
     value: "youtube_playlist",
