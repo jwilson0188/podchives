@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TranscriptViewer } from "@/components/episodes/TranscriptViewer";
@@ -12,15 +13,10 @@ import {
 } from "@/lib/data";
 import { formatDate, formatDuration } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export default async function EpisodeDetailPage({
   params,
-  searchParams,
 }: {
   params: { id: string };
-  searchParams: { t?: string };
 }) {
   const [ep, segments, podcast, usage] = await Promise.all([
     getEpisode(params.id),
@@ -29,8 +25,6 @@ export default async function EpisodeDetailPage({
     getEpisodeUsage(params.id),
   ]);
   if (!ep) notFound();
-
-  const initialT = searchParams.t ? parseInt(searchParams.t, 10) || 0 : 0;
 
   return (
     <div>
@@ -123,14 +117,15 @@ export default async function EpisodeDetailPage({
         </div>
       )}
 
-      <TranscriptViewer
-        episodeTitle={ep.episodeTitle}
-        podcastName={podcast.name}
-        sourceUrl={ep.sourceUrl}
-        thumbnailUrl={ep.thumbnailUrl}
-        segments={segments}
-        initialSeconds={initialT}
-      />
+      <Suspense fallback={null}>
+        <TranscriptViewer
+          episodeTitle={ep.episodeTitle}
+          podcastName={podcast.name}
+          sourceUrl={ep.sourceUrl}
+          thumbnailUrl={ep.thumbnailUrl}
+          segments={segments}
+        />
+      </Suspense>
     </div>
   );
 }

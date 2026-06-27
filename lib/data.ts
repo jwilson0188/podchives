@@ -77,6 +77,21 @@ export type CockpitSummary = {
   workerActive: boolean;
 };
 
+/** Lightweight snapshot for dashboard polling (no archives/sources lists). */
+export type DashboardLiveSnapshot = Pick<
+  CockpitSummary,
+  | "stats"
+  | "totalHours"
+  | "searchableHours"
+  | "coveragePercent"
+  | "transcriptMoments"
+  | "transcribedEpisodes"
+  | "backlogEpisodes"
+  | "workerActive"
+> & {
+  activeJobs: ProcessingJobView[];
+};
+
 export type UsageStats = typeof demoUsage;
 
 export function useDemoData(): boolean {
@@ -225,6 +240,113 @@ export async function getCockpitSummary(): Promise<CockpitSummary> {
     };
   } catch (err) {
     logError("getCockpitSummary", err);
+    return empty;
+  }
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** One retry helps survive transient Supabase pool blips on Vercel. */
+export async function getCockpitSummaryWithRetry(): Promise<CockpitSummary> {
+  const first = await getCockpitSummary();
+  if (dashboardHasArchiveData(first)) return first;
+  await sleep(400);
+  return getCockpitSummary();
+}
+
+function dashboardHasArchiveData(cockpit: CockpitSummary): boolean {
+  return (
+    cockpit.sources.length > 0 ||
+    cockpit.stats.totalEpisodes > 0 ||
+    cockpit.archives.length > 0
+  );
+}
+
+/** DB-only metrics that change during processing — for client polling. */
+export async function getDashboardLiveSnapshot(): Promise<DashboardLiveSnapshot> {
+  const empty: DashboardLiveSnapshot = {
+    stats: {
+      totalArchives: 0,
+      totalEpisodes: 0,
+      searchableEpisodes: 0,
+      queuedJobs: 0,
+      failedJobs: 0,
+      activeJobs: 0,
+    },
+    totalHours: 0,
+    searchableHours: 0,
+    coveragePercent: 0,
+    transcriptMoments: 0,
+    transcribedEpisodes: 0,
+    backlogEpisodes: 0,
+    workerActive: false,
+    activeJobs: [],
+  };
+
+  if (useDemoData()) {
+    const totalSec = demoEpisodes.reduce((a, e) => a + e.durationSeconds, 0);
+    const searchSec = demoEpisodes
+      .filter((e) => e.isSearchable)
+      .reduce((a, e) => a + e.durationSeconds, 0);
+    const transcribed = demoEpisodes.filter((e) => e.isTranscribed).length;
+    const searchable = demoStats.searchableEpisodes;
+    const activeJobs = demoProcessingJobs.filter(
+      (j) => j.status !== "completed" && j.status !== "queued",
+    );
+    return {
+      stats: demoStats,
+      totalHours: totalSec / 3600,
+      searchableHours: searchSec / 3600,
+      coveragePercent:
+        demoStats.totalEpisodes > 0
+          ? Math.round((searchable / demoStats.totalEpisodes) * 100)
+          : 0,
+      transcriptMoments: demoTranscriptSegments.length,
+      transcribedEpisodes: transcribed,
+      backlogEpisodes: demoStats.totalEpisodes - searchable,
+      workerActive: demoStats.activeJobs > 0 || demoStats.queuedJobs > 0,
+      activeJobs,
+    };
+  }
+
+  try {
+    const db = getDb();
+    const [stats, activeJobs, durations, searchableDur, transcribed, moments] =
+      await Promise.all([
+        getDashboardStats(),
+        getActiveProcessingJobs(),
+        db.episode.aggregate({ _sum: { durationSeconds: true } }),
+        db.episode.aggregate({
+          where: { isSearchable: true },
+          _sum: { durationSeconds: true },
+        }),
+        db.episode.count({ where: { isTranscribed: true } }),
+        db.transcriptSegment.count(),
+      ]);
+
+    const totalEpisodes = stats.totalEpisodes;
+    const searchable = stats.searchableEpisodes;
+    const totalSec = durations._sum.durationSeconds ?? 0;
+    const searchSec = searchableDur._sum.durationSeconds ?? 0;
+
+    return {
+      stats,
+      totalHours: totalSec / 3600,
+      searchableHours: searchSec / 3600,
+      coveragePercent:
+        totalEpisodes > 0
+          ? Math.round((searchable / totalEpisodes) * 100)
+          : 0,
+      transcriptMoments: moments,
+      transcribedEpisodes: transcribed,
+      backlogEpisodes: totalEpisodes - searchable,
+      workerActive: stats.activeJobs > 0 || stats.queuedJobs > 0,
+      activeJobs,
+    };
+  } catch (err) {
+    logError("getDashboardLiveSnapshot", err);
     return empty;
   }
 }

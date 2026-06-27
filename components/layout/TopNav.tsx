@@ -53,7 +53,7 @@ export function TopNav() {
           </span>
         )}
         <Link
-          href="/sources"
+          href="/sources#add-source"
           className="btn-secondary px-2.5 sm:px-3.5 min-h-[36px] sm:min-h-0"
           aria-label="Add source"
         >

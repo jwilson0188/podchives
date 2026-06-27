@@ -19,7 +19,7 @@ const ACTIONS = [
     ),
   },
   {
-    href: "/sources",
+    href: "/sources#add-source",
     label: "Add source",
     desc: "Connect a channel",
     icon: (

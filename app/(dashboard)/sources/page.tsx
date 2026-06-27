@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import { SourceCard } from "@/components/sources/SourceCard";
 import { AddSourceForm } from "@/components/sources/AddSourceForm";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -6,13 +7,11 @@ import { getSources } from "@/lib/data";
 
 export const metadata = { title: "Sources" };
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export default async function SourcesPage() {
   const sources = await getSources();
   return (
     <div>
+      <ScrollToHash id="add-source" />
       <PageHeader
         eyebrow="archive // sources"
         title="Sources"
@@ -20,7 +19,12 @@ export default async function SourcesPage() {
       />
 
       <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6">
-        <div>
+        {/* Form first on mobile so the URL field is above the fold */}
+        <div className="order-1 lg:order-2 scroll-mt-20" id="add-source">
+          <AddSourceForm />
+        </div>
+
+        <div className="order-2 lg:order-1">
           <h2 className="text-sm font-semibold tracking-tight mb-3 text-text-muted uppercase tracking-widest text-[11px]">
             Connected ({sources.length})
           </h2>
@@ -28,7 +32,7 @@ export default async function SourcesPage() {
             {sources.length === 0 ? (
               <EmptyState
                 title="No sources connected"
-                description="Paste a YouTube channel, playlist, or video URL on the right to start your first archive."
+                description="Paste a YouTube channel, playlist, or video URL above to start your first archive."
               />
             ) : (
               sources.map((s) => <SourceCard key={s.id} source={s} />)
@@ -52,10 +56,6 @@ export default async function SourcesPage() {
               desc="Auth-required feeds via cookie or token forwarding."
             />
           </div>
-        </div>
-
-        <div>
-          <AddSourceForm />
         </div>
       </div>
     </div>

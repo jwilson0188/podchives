@@ -112,26 +112,34 @@ export function AddSourceForm() {
       </div>
 
       <div>
-        <label className="label">URL</label>
+        <label className="label" htmlFor="source-url">
+          YouTube URL
+        </label>
         <input
-          type="url"
+          id="source-url"
+          type="text"
+          inputMode="url"
+          autoComplete="url"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={hint}
-          className="input font-mono text-sm"
+          className="input font-mono text-base sm:text-sm min-h-[44px]"
           required
         />
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] text-text-muted">
+      <div className="flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3">
+        <p className="text-[11px] text-text-muted sm:max-w-[55%]">
           Authenticated sources (Patreon, members-only) require cookies. Set{" "}
           <code className="text-cyan">YOUTUBE_COOKIES_FILE</code> in your env.
         </p>
         <button
           type="submit"
           disabled={submitting || !url.trim()}
-          className="btn-primary text-sm"
+          className="btn-primary text-sm w-full sm:w-auto min-h-[44px] flex-shrink-0"
         >
           {submitting ? "Adding…" : "Add source"}
         </button>

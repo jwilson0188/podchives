@@ -1,35 +1,35 @@
+import { Suspense } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { EpisodeCatalogTable } from "@/components/episodes/EpisodeCatalogTable";
-import { getEpisodes } from "@/lib/data";
+import { EpisodeCatalogView } from "@/components/episodes/EpisodeCatalogView";
+import { getEpisodes, getPodcasts } from "@/lib/data";
 
 export const metadata = { title: "Episodes" };
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 300;
 
-export default async function EpisodesPage({
-  searchParams,
-}: {
-  searchParams: { archive?: string; status?: string };
-}) {
-  const episodes = await getEpisodes({
-    archiveId: searchParams.archive,
-    status: searchParams.status as
-      | "searchable"
-      | "failed"
-      | "processing"
-      | undefined,
-  });
+/** No searchParams on the server — filters are client-side only (/api/episodes). */
+export default async function EpisodesPage() {
+  const [episodes, archives] = await Promise.all([
+    getEpisodes(),
+    getPodcasts(),
+  ]);
+
+  const archiveOptions = archives.map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <div>
       <PageHeader
         eyebrow="library // catalog"
         title="Episodes"
-        description="Every video, livestream, and recording — across every connected source."
+        description="Every video, livestream, and recording — filter by archive or show only fully searchable episodes."
       />
 
-      <EpisodeCatalogTable episodes={episodes} />
+      <Suspense fallback={null}>
+        <EpisodeCatalogView
+          initialEpisodes={episodes}
+          archives={archiveOptions}
+        />
+      </Suspense>
     </div>
   );
 }

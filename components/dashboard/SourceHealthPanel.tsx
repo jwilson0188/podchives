@@ -26,7 +26,7 @@ export function SourceHealthPanel({ sources }: { sources: SourceView[] }) {
           <p className="text-sm text-text-muted mb-3">
             No sources connected yet.
           </p>
-          <Link href="/sources" className="btn-primary text-sm">
+          <Link href="/sources#add-source" className="btn-primary text-sm">
             Add your first source
           </Link>
         </div>

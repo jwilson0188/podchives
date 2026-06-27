@@ -7,9 +7,6 @@ import { formatRelativeDate } from "@/lib/utils";
 
 export const metadata = { title: "Archives" };
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export default async function ArchivesPage() {
   const [podcasts, sources] = await Promise.all([getPodcasts(), getSources()]);
   return (
@@ -19,7 +16,7 @@ export default async function ArchivesPage() {
         title="Archives"
         description="Each archive is a podcast or show. An archive can be fed by one or many sources."
         actions={
-          <Link href="/sources" className="btn-primary">
+          <Link href="/sources#add-source" className="btn-primary">
             Add archive
           </Link>
         }
@@ -30,7 +27,7 @@ export default async function ArchivesPage() {
           title="No archives yet"
           description="An archive is a podcast or show. Add a source to create your first one."
           action={
-            <Link href="/sources" className="btn-primary">
+            <Link href="/sources#add-source" className="btn-primary">
               Add source
             </Link>
           }

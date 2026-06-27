@@ -1,40 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import type { UsageStats } from "@/lib/data";
-
-const POLL_MS = 15_000;
+import { useLivePoll } from "@/hooks/useLivePoll";
 
 export function UsageCreditsCard({ initial }: { initial: UsageStats }) {
-  const [usage, setUsage] = useState<UsageStats>(initial);
-  const [live, setLive] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const tick = async () => {
-      if (document.visibilityState === "hidden") return;
-      try {
-        const res = await fetch("/api/usage", { cache: "no-store" });
-        if (!res.ok) return;
-        const next = (await res.json()) as UsageStats;
-        if (!cancelled) {
-          setUsage(next);
-          setLive(true);
-        }
-      } catch {
-        // transient — keep the last good value
-      }
-    };
-
-    tick();
-    const id = setInterval(tick, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  const { data: usage, live } = useLivePoll("/api/usage", initial);
 
   const pct =
     usage.creditsTotal > 0

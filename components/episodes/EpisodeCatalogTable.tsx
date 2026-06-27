@@ -6,13 +6,19 @@ import { formatDate, formatDuration } from "@/lib/utils";
 
 export function EpisodeCatalogTable({
   episodes,
+  statusFilter,
 }: {
   episodes: DemoEpisode[];
+  statusFilter?: string;
 }) {
   if (episodes.length === 0) {
     return (
       <div className="card p-12 text-center text-text-muted text-sm">
-        No episodes yet. Add a YouTube source to start ingesting.
+        {statusFilter === "searchable"
+          ? "No fully searchable episodes yet. Episodes appear here once transcription and indexing finish."
+          : statusFilter
+            ? "No episodes match these filters."
+            : "No episodes yet. Add a YouTube source to start ingesting."}
       </div>
     );
   }

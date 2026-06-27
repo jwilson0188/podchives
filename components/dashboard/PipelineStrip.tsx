@@ -1,10 +1,21 @@
 import Link from "next/link";
-import type { CockpitSummary } from "@/lib/data";
+import type { DashboardStats } from "@/lib/data";
 import { formatNumber } from "@/lib/utils";
 
+type PipelineStripProps = {
+  stats: Pick<DashboardStats, "totalEpisodes" | "searchableEpisodes">;
+  transcribedEpisodes: number;
+  coveragePercent: number;
+  backlogEpisodes: number;
+};
+
 /** Visual funnel: ingested → transcribed → searchable. */
-export function PipelineStrip({ cockpit }: { cockpit: CockpitSummary }) {
-  const { stats, transcribedEpisodes } = cockpit;
+export function PipelineStrip({
+  stats,
+  transcribedEpisodes,
+  coveragePercent,
+  backlogEpisodes,
+}: PipelineStripProps) {
   const total = stats.totalEpisodes || 1;
   const stages = [
     {
@@ -22,7 +33,7 @@ export function PipelineStrip({ cockpit }: { cockpit: CockpitSummary }) {
     {
       label: "Searchable",
       value: stats.searchableEpisodes,
-      pct: cockpit.coveragePercent,
+      pct: coveragePercent,
       color: "bg-success",
     },
   ];
@@ -69,10 +80,10 @@ export function PipelineStrip({ cockpit }: { cockpit: CockpitSummary }) {
         ))}
       </div>
 
-      {cockpit.backlogEpisodes > 0 && (
+      {backlogEpisodes > 0 && (
         <p className="text-xs text-text-muted text-center">
           <span className="text-warn font-medium">
-            {formatNumber(cockpit.backlogEpisodes)} episodes
+            {formatNumber(backlogEpisodes)} episodes
           </span>{" "}
           still in the pipeline — flip{" "}
           <span className="text-accent">auto-sync</span> on to keep draining the

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 /**
@@ -14,7 +13,6 @@ export function AutoSyncButton({
   total: number;
   enabled: number;
 }) {
-  const router = useRouter();
   const [enabled, setEnabled] = useState(enabledInitial);
   const [busy, setBusy] = useState(false);
 
@@ -42,10 +40,8 @@ export function AutoSyncButton({
         body: JSON.stringify({ enabled: next }),
       });
       if (!res.ok) {
-        setEnabled(enabledInitial); // revert
+        setEnabled(enabledInitial);
         console.error("Auto-sync update failed", await res.text());
-      } else {
-        router.refresh();
       }
     } catch (err) {
       setEnabled(enabledInitial);

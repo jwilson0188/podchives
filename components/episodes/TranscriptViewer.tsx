@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { DemoTranscriptSegment } from "@/lib/demoData";
 import { EpisodePlayer, type PlayerHandle } from "./EpisodePlayer";
 import { formatTimestamp, highlight } from "@/lib/utils";
@@ -11,15 +12,18 @@ export function TranscriptViewer({
   sourceUrl,
   thumbnailUrl,
   segments,
-  initialSeconds = 0,
 }: {
   episodeTitle: string;
   podcastName: string;
   sourceUrl: string;
   thumbnailUrl: string;
   segments: DemoTranscriptSegment[];
-  initialSeconds?: number;
 }) {
+  const searchParams = useSearchParams();
+  const initialSeconds = useMemo(() => {
+    const t = searchParams.get("t");
+    return t ? parseInt(t, 10) || 0 : 0;
+  }, [searchParams]);
   const playerRef = useRef<PlayerHandle | null>(null);
   const [activeSegId, setActiveSegId] = useState<string | null>(null);
   const [transcriptQuery, setTranscriptQuery] = useState("");

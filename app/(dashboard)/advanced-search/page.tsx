@@ -4,9 +4,6 @@ import { getPodcasts } from "@/lib/data";
 
 export const metadata = { title: "Advanced Search" };
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export default async function AdvancedSearchPage() {
   const archives = await getPodcasts();
   return (
