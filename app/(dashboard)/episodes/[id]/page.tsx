@@ -85,8 +85,21 @@ export default async function EpisodeDetailPage({
         }
       />
 
+      <Suspense fallback={null}>
+        <TranscriptViewer
+          episodeTitle={ep.episodeTitle}
+          archiveName={podcast.name}
+          sourceName={source.sourceName}
+          sourceChannelUrl={source.sourceUrl}
+          sourceTypeLabel={sourceTypeLabel}
+          videoUrl={ep.sourceUrl}
+          thumbnailUrl={ep.thumbnailUrl}
+          segments={segments}
+        />
+      </Suspense>
+
       {usage && (usage.audioBytes > 0 || usage.embeddingTokens > 0 || usage.isTranscribed) && (
-        <div className="card p-4 mb-6">
+        <div className="card p-4 mt-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold tracking-tight">
               Compute &amp; cost
@@ -127,19 +140,6 @@ export default async function EpisodeDetailPage({
           </div>
         </div>
       )}
-
-      <Suspense fallback={null}>
-        <TranscriptViewer
-          episodeTitle={ep.episodeTitle}
-          archiveName={podcast.name}
-          sourceName={source.sourceName}
-          sourceChannelUrl={source.sourceUrl}
-          sourceTypeLabel={sourceTypeLabel}
-          videoUrl={ep.sourceUrl}
-          thumbnailUrl={ep.thumbnailUrl}
-          segments={segments}
-        />
-      </Suspense>
     </div>
   );
 }
