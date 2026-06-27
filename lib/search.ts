@@ -12,6 +12,7 @@
  */
 import { IS_DEMO_MODE } from "./constants";
 import { searchDemo, type DemoSearchResult } from "./demoData";
+import { resolveThumbnailUrl } from "./utils";
 
 export type SearchFilters = {
   archiveId?: string;
@@ -53,6 +54,7 @@ export async function keywordSearch(
       e.episode_title,
       e.episode_number,
       e.publish_date,
+      e.external_id,
       e.thumbnail_local_path,
       e.thumbnail_original_url,
       p.name AS podcast_name,
@@ -86,7 +88,11 @@ export async function keywordSearch(
     sourceUrl: r.source_url,
     sourcePlatform: r.source_platform,
     relevanceScore: Math.min(1, Number(r.rank) || 0),
-    thumbnailUrl: r.thumbnail_local_path ?? r.thumbnail_original_url ?? "",
+    thumbnailUrl: resolveThumbnailUrl({
+      localPath: r.thumbnail_local_path,
+      originalUrl: r.thumbnail_original_url,
+      externalId: r.external_id,
+    }),
   }));
 }
 
@@ -130,6 +136,7 @@ export async function semanticSearch(
       e.episode_title,
       e.episode_number,
       e.publish_date,
+      e.external_id,
       e.thumbnail_local_path,
       e.thumbnail_original_url,
       p.name AS podcast_name,
@@ -159,7 +166,11 @@ export async function semanticSearch(
     sourceUrl: r.source_url,
     sourcePlatform: r.source_platform,
     relevanceScore: Math.max(0, Math.min(1, Number(r.similarity) || 0)),
-    thumbnailUrl: r.thumbnail_local_path ?? r.thumbnail_original_url ?? "",
+    thumbnailUrl: resolveThumbnailUrl({
+      localPath: r.thumbnail_local_path,
+      originalUrl: r.thumbnail_original_url,
+      externalId: r.external_id,
+    }),
   }));
 }
 

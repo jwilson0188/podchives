@@ -1,34 +1,46 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
-import { demoUsage } from "@/lib/demoData";
+import { COST_MODEL } from "@/lib/constants";
+import { getDataMode, getUsageStats } from "@/lib/data";
 
 export const metadata = { title: "Usage / Compute" };
 
-export default function UsagePage() {
-  const pct = Math.round(
-    (demoUsage.creditsRemaining / demoUsage.creditsTotal) * 100,
-  );
+// DB-backed totals must reflect the current archive + queue state.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export default async function UsagePage() {
+  const usage = await getUsageStats();
+  const isDemo = getDataMode() === "demo";
+  const pct =
+    usage.creditsTotal > 0
+      ? Math.round((usage.creditsRemaining / usage.creditsTotal) * 100)
+      : 0;
+  const totalCostUsd = usage.transcriptionCostUsd + usage.embeddingCostUsd;
+
   return (
     <div>
       <PageHeader
         eyebrow="ops // usage"
         title="Usage / Compute"
-        description={`Compute, transcription, embeddings, and storage usage for ${demoUsage.monthLabel}.`}
+        description={`Transcription, embeddings, and storage to date · compute budget for ${usage.monthLabel}.`}
       />
 
       <section className="card p-5 mb-6">
         <div className="flex items-baseline justify-between mb-2">
-          <h2 className="font-semibold tracking-tight">Credits</h2>
+          <h2 className="font-semibold tracking-tight">Compute budget</h2>
           <span className="text-xs text-text-muted font-mono">
-            placeholder · billing not connected
+            {isDemo
+              ? "placeholder · demo data"
+              : `worker minutes · ${usage.monthLabel}`}
           </span>
         </div>
         <div className="flex items-baseline gap-3 mb-3">
           <span className="text-4xl font-semibold tabular-nums">
-            {demoUsage.creditsRemaining}
+            {usage.creditsRemaining}
           </span>
           <span className="text-text-muted">
-            of {demoUsage.creditsTotal} remaining ({pct}%)
+            of {usage.creditsTotal} min remaining ({pct}%)
           </span>
         </div>
         <div className="h-2 rounded-full bg-bg-elevated overflow-hidden">
@@ -42,30 +54,35 @@ export default function UsagePage() {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <StatCard
           label="Transcription"
-          value={`${demoUsage.transcriptionMinutes} min`}
-          hint={`$${demoUsage.transcriptionCostUsd.toFixed(2)} estimated`}
+          value={`${usage.transcriptionMinutes.toLocaleString()} min`}
+          hint={`$${usage.transcriptionCostUsd.toFixed(2)} estimated`}
           accent="cyan"
         />
         <StatCard
           label="Embeddings"
-          value={`${(demoUsage.embeddingTokens / 1000).toFixed(1)}K tok`}
-          hint={`$${demoUsage.embeddingCostUsd.toFixed(2)} estimated`}
+          value={`${(usage.embeddingTokens / 1000).toFixed(1)}K tok`}
+          hint={`$${usage.embeddingCostUsd.toFixed(2)} estimated`}
           accent="cyan"
         />
         <StatCard
           label="Storage"
-          value={`${(demoUsage.storageBytes / 1_000_000_000).toFixed(2)} GB`}
-          hint="audio + transcripts + thumbnails"
+          value={`${(usage.storageBytes / 1_000_000_000).toFixed(2)} GB`}
+          hint="audio + transcripts + thumbnails (est.)"
         />
         <StatCard
           label="Compute"
-          value={`${demoUsage.computeMinutes} min`}
-          hint="local worker time"
+          value={`${usage.computeMinutes.toLocaleString()} min`}
+          hint={`worker time · ${usage.monthLabel}`}
         />
       </section>
 
       <section className="card p-5">
-        <h2 className="font-semibold tracking-tight mb-3">Cost model</h2>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="font-semibold tracking-tight">Cost model</h2>
+          <span className="text-xs text-text-muted font-mono">
+            ${totalCostUsd.toFixed(2)} total est.
+          </span>
+        </div>
         <table className="w-full text-sm">
           <thead className="text-[10px] uppercase tracking-widest text-text-muted">
             <tr>
@@ -79,20 +96,20 @@ export default function UsagePage() {
             <CostRow
               stage="Transcription"
               provider="OpenAI Whisper API"
-              unit="$0.006 / minute"
-              est={`$${demoUsage.transcriptionCostUsd.toFixed(2)}`}
+              unit={`$${COST_MODEL.whisperUsdPerMinute.toFixed(3)} / minute`}
+              est={`$${usage.transcriptionCostUsd.toFixed(2)}`}
             />
             <CostRow
               stage="Embeddings"
               provider="OpenAI text-embedding-3-small"
-              unit="$0.020 / 1M tokens"
-              est={`$${demoUsage.embeddingCostUsd.toFixed(2)}`}
+              unit={`$${COST_MODEL.embeddingUsdPer1MTokens.toFixed(3)} / 1M tokens`}
+              est={`$${usage.embeddingCostUsd.toFixed(2)}`}
             />
             <CostRow
               stage="Storage"
               provider="Local / Supabase / S3"
               unit="varies"
-              est="—"
+              est={`${(usage.storageBytes / 1_000_000_000).toFixed(2)} GB`}
             />
             <CostRow
               stage="Search compute"
@@ -103,8 +120,10 @@ export default function UsagePage() {
           </tbody>
         </table>
         <p className="mt-4 text-[11px] text-text-muted">
-          Numbers are estimates and assume default models. For local Whisper or
-          local embeddings, costs go to zero except for compute time.
+          Numbers are estimates and assume default models — token counts are
+          derived from transcript length and storage from audio duration. For
+          local Whisper or local embeddings, costs go to zero except for
+          compute time.
         </p>
       </section>
     </div>

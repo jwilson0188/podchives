@@ -6,6 +6,30 @@ export const IS_DEMO_MODE =
 
 export const PROCESSING_MODE = process.env.PROCESSING_MODE ?? "local";
 
+/**
+ * Provider cost model + estimation heuristics for the Usage / Compute page.
+ *
+ * Rates are list prices for the default models (OpenAI Whisper API +
+ * text-embedding-3-small). The byte/token figures are estimates — we don't
+ * store exact token counts or file sizes, so they're derived from audio
+ * duration and transcript text length. All numbers are clearly labeled as
+ * estimates in the UI; actual billing is not connected.
+ */
+export const COST_MODEL = {
+  /** OpenAI Whisper API — billed per minute of audio. */
+  whisperUsdPerMinute: 0.006,
+  /** OpenAI text-embedding-3-small — billed per 1M tokens. */
+  embeddingUsdPer1MTokens: 0.02,
+  /** Rough chars→tokens ratio for English text (OpenAI guidance: ~4). */
+  charsPerToken: 4,
+  /** ~128 kbps mono mp3 ≈ 16 KB/s. Used to estimate stored audio size. */
+  audioBytesPerSecond: 16_000,
+  /** Average cached thumbnail size estimate. */
+  thumbnailBytesEstimate: 50_000,
+  /** Fallback monthly compute budget (minutes) when no scheduler row exists. */
+  defaultComputeLimitMinutes: 200,
+} as const;
+
 export const SOURCE_TYPES = [
   "youtube_channel",
   "youtube_playlist",

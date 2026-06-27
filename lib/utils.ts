@@ -91,6 +91,30 @@ export function buildTimestampUrl(
   }
 }
 
+/**
+ * Resolve a browser-servable thumbnail URL.
+ *
+ * `thumbnailLocalPath` is a filesystem path on the worker's ephemeral disk and
+ * is NOT reachable from the web app, so we only ever emit real http(s) URLs:
+ * the original CDN URL, a derived YouTube thumbnail, or a neutral placeholder.
+ */
+export function resolveThumbnailUrl(opts: {
+  localPath?: string | null;
+  originalUrl?: string | null;
+  externalId?: string | null;
+}): string {
+  const isUrl = (v?: string | null): v is string =>
+    !!v && /^https?:\/\//i.test(v);
+
+  if (isUrl(opts.originalUrl)) return opts.originalUrl;
+  // Some rows stored a URL in localPath historically — honor it if so.
+  if (isUrl(opts.localPath)) return opts.localPath;
+  if (opts.externalId) {
+    return `https://i.ytimg.com/vi/${opts.externalId}/hqdefault.jpg`;
+  }
+  return "/placeholder-thumb.svg";
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

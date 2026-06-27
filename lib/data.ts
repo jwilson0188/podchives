@@ -14,8 +14,9 @@
  * so a misconfigured env never crashes the dashboard. Errors are logged
  * to the server console.
  */
-import { IS_DEMO_MODE } from "./constants";
+import { COST_MODEL, IS_DEMO_MODE } from "./constants";
 import { hasDatabase, getDb } from "./db";
+import { resolveThumbnailUrl } from "./utils";
 import {
   demoDownloads,
   demoEpisodes,
@@ -479,10 +480,115 @@ export async function getRecentSearches(
 
 // ─── Usage ────────────────────────────────────────────────────────────────
 
+/**
+ * Real usage rollup.
+ *
+ * Scope: transcription / embeddings / storage are **lifetime** totals (the
+ * cost the archive has accrued to date). Compute + credits are scoped to the
+ * **current calendar month**, since the budget in scheduler_settings is
+ * expressed as "minutes per month".
+ *
+ * Every figure is an estimate — we don't store exact token counts or file
+ * sizes — derived from audio duration + transcript text length using
+ * COST_MODEL. Actual provider billing is not connected.
+ */
 export async function getUsageStats(): Promise<UsageStats> {
-  // For MVP, usage rollups are still mocked. When billing is wired up,
-  // replace with a real aggregate over worker_runs + search_queries.
-  return demoUsage;
+  if (useDemoData()) return demoUsage;
+
+  const monthLabel = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  try {
+    const db = getDb();
+    const monthStart = startOfCurrentMonth();
+
+    const [transcribedDuration, charRow, audioDuration, thumbCount, settings, runs] =
+      await Promise.all([
+        // Whisper bills per minute of transcribed audio.
+        db.episode.aggregate({
+          where: { isTranscribed: true },
+          _sum: { durationSeconds: true },
+        }),
+        // Total transcript characters → token estimate for embedding cost.
+        db.$queryRaw<{ chars: bigint }[]>`
+          SELECT COALESCE(SUM(LENGTH(transcript_text)), 0)::bigint AS chars
+          FROM transcript_segments
+        `,
+        // Downloaded audio (has a file path) → storage size estimate.
+        db.episode.aggregate({
+          where: { audioFilePath: { not: null } },
+          _sum: { durationSeconds: true },
+        }),
+        db.episode.count({ where: { thumbnailLocalPath: { not: null } } }),
+        db.schedulerSettings.findFirst(),
+        // Real worker wall-clock time this month.
+        db.workerRun.findMany({
+          where: { startedAt: { gte: monthStart } },
+          select: { startedAt: true, completedAt: true },
+        }),
+      ]);
+
+    const transcriptionMinutes = Math.round(
+      (transcribedDuration._sum.durationSeconds ?? 0) / 60,
+    );
+    const transcriptionCostUsd =
+      transcriptionMinutes * COST_MODEL.whisperUsdPerMinute;
+
+    const transcriptChars = Number(charRow[0]?.chars ?? 0);
+    const embeddingTokens = Math.round(
+      transcriptChars / COST_MODEL.charsPerToken,
+    );
+    const embeddingCostUsd =
+      (embeddingTokens / 1_000_000) * COST_MODEL.embeddingUsdPer1MTokens;
+
+    const audioSeconds = audioDuration._sum.durationSeconds ?? 0;
+    const storageBytes =
+      audioSeconds * COST_MODEL.audioBytesPerSecond +
+      transcriptChars + // transcripts ≈ 1 byte/char (UTF-8 ASCII)
+      thumbCount * COST_MODEL.thumbnailBytesEstimate;
+
+    const computeMs = runs.reduce((acc, r) => {
+      const end = r.completedAt?.getTime() ?? Date.now();
+      return acc + Math.max(0, end - r.startedAt.getTime());
+    }, 0);
+    const computeMinutes = Math.round(computeMs / 60_000);
+
+    const creditsTotal =
+      settings?.computeLimit ?? COST_MODEL.defaultComputeLimitMinutes;
+    const creditsRemaining = Math.max(0, creditsTotal - computeMinutes);
+
+    return {
+      transcriptionMinutes,
+      transcriptionCostUsd,
+      embeddingTokens,
+      embeddingCostUsd,
+      storageBytes,
+      computeMinutes,
+      creditsRemaining,
+      creditsTotal,
+      monthLabel,
+    };
+  } catch (err) {
+    logError("getUsageStats", err);
+    return {
+      transcriptionMinutes: 0,
+      transcriptionCostUsd: 0,
+      embeddingTokens: 0,
+      embeddingCostUsd: 0,
+      storageBytes: 0,
+      computeMinutes: 0,
+      creditsRemaining: COST_MODEL.defaultComputeLimitMinutes,
+      creditsTotal: COST_MODEL.defaultComputeLimitMinutes,
+      monthLabel,
+    };
+  }
+}
+
+function startOfCurrentMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
 // ─── First-podcast helper for demo cards ──────────────────────────────────
@@ -510,10 +616,11 @@ function toEpisodeView(e: any): EpisodeView {
         ? e.publishDate.toISOString()
         : (e.publishDate ?? new Date(0).toISOString()),
     durationSeconds: e.durationSeconds ?? 0,
-    thumbnailUrl:
-      e.thumbnailLocalPath ??
-      e.thumbnailOriginalUrl ??
-      "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+    thumbnailUrl: resolveThumbnailUrl({
+      localPath: e.thumbnailLocalPath,
+      originalUrl: e.thumbnailOriginalUrl,
+      externalId: e.externalId,
+    }),
     transcriptStatus: e.transcriptStatus as EpisodeView["transcriptStatus"],
     embeddingStatus: e.embeddingStatus as EpisodeView["embeddingStatus"],
     processingStatus: e.processingStatus as EpisodeView["processingStatus"],

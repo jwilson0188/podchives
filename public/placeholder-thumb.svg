@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="320" height="180" role="img" aria-label="No thumbnail">
+  <rect width="320" height="180" fill="#16181d"/>
+  <g fill="none" stroke="#3a3f4b" stroke-width="2">
+    <circle cx="160" cy="84" r="26"/>
+    <polygon points="152,72 178,84 152,96" fill="#3a3f4b" stroke="none"/>
+  </g>
+  <text x="160" y="140" fill="#5a6171" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" text-anchor="middle">No thumbnail</text>
+</svg>
