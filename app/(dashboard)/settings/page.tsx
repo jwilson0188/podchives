@@ -5,17 +5,42 @@ export const metadata = { title: "Settings" };
 export default function SettingsPage() {
   const env = (k: string) => process.env[k];
   const hasKey = (k: string) => Boolean(env(k));
+  const demoMode = (env("NEXT_PUBLIC_DEMO_MODE") ?? "true").toLowerCase();
 
   return (
     <div>
       <PageHeader
         eyebrow="config"
         title="Settings"
-        description="Environment, processing mode, overnight scheduler, storage, and theme."
+        description="How this deployment is wired up. Configuration lives in environment variables on Vercel (web) and Render (worker) — this page is read-only."
       />
 
       <div className="space-y-6">
-        <Section title="API keys">
+        <Section
+          title="Deployment"
+          desc="Where each part of the system actually runs."
+        >
+          <SettingRow label="Web app" value="Vercel" />
+          <SettingRow
+            label="Background worker"
+            value="Render — Docker, always-on"
+            hint="Runs the ingestion → transcription → embedding → indexing pipeline."
+          />
+          <SettingRow
+            label="Database"
+            value="Supabase — Postgres + pgvector"
+            hint="Shared by the web app and the worker. All durable data lives here."
+          />
+          <SettingRow
+            label="AI"
+            value="OpenAI — Whisper + text-embedding-3-small"
+          />
+        </Section>
+
+        <Section
+          title="Environment (this web app)"
+          desc="Secrets configured on the web app. The worker keeps its own copy of these on Render."
+        >
           <KeyRow
             name="OPENAI_API_KEY"
             present={hasKey("OPENAI_API_KEY")}
@@ -24,70 +49,62 @@ export default function SettingsPage() {
           <KeyRow
             name="DATABASE_URL"
             present={hasKey("DATABASE_URL")}
-            desc="Postgres connection string (Supabase or self-hosted)."
+            desc="Postgres connection string (Supabase)."
           />
-          <KeyRow
-            name="STORAGE_BUCKET"
-            present={hasKey("STORAGE_BUCKET")}
-            desc="Object storage for audio files. Local fs is used when empty."
+          <SettingRow
+            label="YOUTUBE_COOKIES_FILE"
+            value="set on the worker (Render secret file)"
+            hint="yt-dlp needs this; it lives with the worker, not the web app, so it correctly shows as absent here."
           />
-          <KeyRow
-            name="YOUTUBE_COOKIES_FILE"
-            present={hasKey("YOUTUBE_COOKIES_FILE")}
-            desc="Path to a yt-dlp cookies.txt for age/region/auth-locked content."
+          <SettingRow
+            label="Demo data (NEXT_PUBLIC_DEMO_MODE)"
+            value={demoMode}
+            hint={
+              demoMode === "true"
+                ? "Showing mock data — not the live database."
+                : "Live mode — reading from the real database."
+            }
           />
         </Section>
 
-        <Section title="Processing mode">
+        <Section
+          title="Processing"
+          desc="Handled by the background worker, not this web app."
+        >
           <SettingRow
-            label="Mode"
-            value={env("PROCESSING_MODE") ?? "local"}
-            options={["local", "render-worker", "cloud-run"]}
+            label="Runner"
+            value="Render worker — continuous"
+            hint="Polls the job queue every ~5s, 24/7. There is no 'local' processing in production."
           />
+          <SettingRow label="Concurrency" value="1 job at a time" />
           <SettingRow
-            label="Demo data"
-            value={(env("NEXT_PUBLIC_DEMO_MODE") ?? "true").toLowerCase()}
-            options={["true", "false"]}
-          />
-        </Section>
-
-        <Section title="Overnight processing">
-          <SettingRow
-            label="Enabled"
-            value={(env("OVERNIGHT_PROCESSING_ENABLED") ?? "false").toLowerCase()}
-            options={["true", "false"]}
-          />
-          <SettingRow
-            label="Start time"
-            value={env("OVERNIGHT_START_TIME") ?? "02:00"}
-          />
-          <SettingRow
-            label="Max jobs per run"
-            value={env("MAX_JOBS_PER_RUN") ?? "3"}
-          />
-          <SettingRow
-            label="Retry failed jobs"
-            value="true"
-            options={["true", "false"]}
+            label="Overnight scheduler"
+            value="off — not used"
+            hint="The worker runs continuously, so the scheduled-window mode is disabled. Failed jobs are retried manually from the Processing Queue."
           />
         </Section>
 
-        <Section title="Storage">
-          <SettingRow label="Driver" value="local" options={["local", "supabase", "s3"]} />
-          <SettingRow label="Audio path" value="/storage/audio" />
-          <SettingRow label="Thumbnail path" value="/storage/thumbnails" />
+        <Section
+          title="Storage"
+          desc="Audio is transient; durable data lives in Postgres."
+        >
+          <SettingRow
+            label="Driver"
+            value="local — ephemeral"
+            hint="Downloaded audio is written to the worker's disk and wiped on each redeploy. That's fine: transcripts + embeddings persist in Postgres, and playback streams from the original source URL."
+          />
+          <SettingRow label="Audio path" value="storage/audio" />
+          <SettingRow label="Thumbnail path" value="storage/thumbnails" />
+          <SettingRow
+            label="Object storage (STORAGE_BUCKET)"
+            value={hasKey("STORAGE_BUCKET") ? "configured" : "not configured"}
+            hint="Optional Supabase Storage / S3 for durable audio. Not required for search."
+          />
         </Section>
 
         <Section title="Theme">
-          <SettingRow
-            label="Mode"
-            value="dark"
-            options={["dark"]}
-          />
-          <SettingRow
-            label="Accent"
-            value="#FF3D00"
-          />
+          <SettingRow label="Mode" value="dark" />
+          <SettingRow label="Accent" value="#FF3D00" />
         </Section>
       </div>
     </div>
@@ -96,14 +113,21 @@ export default function SettingsPage() {
 
 function Section({
   title,
+  desc,
   children,
 }: {
   title: string;
+  desc?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="card p-5">
-      <h2 className="font-semibold tracking-tight mb-3">{title}</h2>
+      <h2 className="font-semibold tracking-tight">{title}</h2>
+      {desc ? (
+        <p className="text-xs text-text-muted mt-0.5 mb-3">{desc}</p>
+      ) : (
+        <div className="mb-3" />
+      )}
       <div className="divide-y divide-border">{children}</div>
     </section>
   );
@@ -147,32 +171,23 @@ function KeyRow({
 function SettingRow({
   label,
   value,
-  options,
+  hint,
 }: {
   label: string;
   value: string;
-  options?: string[];
+  hint?: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-3 gap-4">
-      <div className="text-sm">{label}</div>
-      <div className="flex items-center gap-2">
-        {options && options.length > 1 ? (
-          <select
-            className="input w-auto text-sm font-mono py-1 min-w-[140px]"
-            defaultValue={value}
-            disabled
-          >
-            {options.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <code className="text-sm text-text-primary font-mono">{value}</code>
-        )}
+    <div className="flex items-start justify-between py-3 gap-4">
+      <div className="min-w-0">
+        <div className="text-sm">{label}</div>
+        {hint ? (
+          <div className="text-xs text-text-muted mt-0.5">{hint}</div>
+        ) : null}
       </div>
+      <code className="text-sm text-text-primary font-mono text-right shrink-0">
+        {value}
+      </code>
     </div>
   );
 }
