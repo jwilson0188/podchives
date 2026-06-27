@@ -48,7 +48,7 @@ export default async function DownloadManagerPage() {
         ) : (
           <div className="grid lg:grid-cols-2 gap-3">
             {sources.map((s) => (
-              <SourceCard key={s.id} source={s} />
+              <SourceCard key={s.id} source={s} showStopSync />
             ))}
           </div>
         )}

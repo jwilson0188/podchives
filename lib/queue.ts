@@ -146,6 +146,66 @@ export async function enqueueDueSourceSyncs(
   return enqueued;
 }
 
+const CANCELLED_BY_USER = "Stopped by user";
+
+/**
+ * Halt ingestion for a source: disable auto-sync, clear queued work, reset status.
+ * In-flight worker jobs may still finish the current step; nothing new will queue.
+ */
+export async function stopSourceSync(sourceId: string): Promise<{
+  cancelledJobs: number;
+  cancelledDownloads: number;
+}> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+
+  const episodeIds = (
+    await db.episode.findMany({
+      where: { sourceId },
+      select: { id: true },
+    })
+  ).map((e) => e.id);
+
+  const [sourceJobs, episodeJobs, downloads] = await Promise.all([
+    db.processingJob.updateMany({
+      where: { sourceId, status: "queued" },
+      data: {
+        status: "failed",
+        errorMessage: CANCELLED_BY_USER,
+        completedAt: new Date(),
+      },
+    }),
+    episodeIds.length > 0
+      ? db.processingJob.updateMany({
+          where: { episodeId: { in: episodeIds }, status: "queued" },
+          data: {
+            status: "failed",
+            errorMessage: CANCELLED_BY_USER,
+            completedAt: new Date(),
+          },
+        })
+      : Promise.resolve({ count: 0 }),
+    db.download.updateMany({
+      where: { sourceId, status: "queued" },
+      data: {
+        status: "failed",
+        errorMessage: CANCELLED_BY_USER,
+        completedAt: new Date(),
+      },
+    }),
+  ]);
+
+  await db.source.update({
+    where: { id: sourceId },
+    data: { autoSync: false, syncStatus: "idle" },
+  });
+
+  return {
+    cancelledJobs: sourceJobs.count + episodeJobs.count,
+    cancelledDownloads: downloads.count,
+  };
+}
+
 /** Pick the next queued job (pipeline-first), marked as running atomically. */
 export async function getNextQueuedJob(workerId: string) {
   const { getDb } = await import("./db");

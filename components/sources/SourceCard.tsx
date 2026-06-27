@@ -2,6 +2,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { SourceView } from "@/lib/data";
 import { formatRelativeDate } from "@/lib/utils";
 import { SyncNowButton } from "./SyncNowButton";
+import { StopSyncButton } from "./StopSyncButton";
 import { AutoSyncToggle } from "./AutoSyncToggle";
 import { RemoveSourceButton } from "./RemoveSourceButton";
 
@@ -14,7 +15,13 @@ const PLATFORM_LABELS: Record<string, string> = {
   patreon_future: "Patreon",
 };
 
-export function SourceCard({ source }: { source: SourceView }) {
+export function SourceCard({
+  source,
+  showStopSync = false,
+}: {
+  source: SourceView;
+  showStopSync?: boolean;
+}) {
   return (
     <div className="card p-4 flex flex-col sm:flex-row sm:items-start gap-4">
       <div className="w-10 h-10 rounded-md bg-accent-muted text-accent flex items-center justify-center flex-shrink-0">
@@ -60,6 +67,13 @@ export function SourceCard({ source }: { source: SourceView }) {
       </div>
       <div className="flex flex-col items-stretch sm:items-end gap-2 flex-shrink-0 w-full sm:w-auto">
         <SyncNowButton sourceId={source.id} />
+        {showStopSync && (
+          <StopSyncButton
+            sourceId={source.id}
+            syncStatus={source.syncStatus}
+            autoSync={source.autoSync}
+          />
+        )}
         <AutoSyncToggle sourceId={source.id} initial={source.autoSync} />
       </div>
     </div>
