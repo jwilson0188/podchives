@@ -265,6 +265,23 @@ function dashboardHasArchiveData(cockpit: CockpitSummary): boolean {
 }
 
 /** DB-only metrics that change during processing — for client polling. */
+export function buildLiveSnapshot(
+  cockpit: CockpitSummary,
+  activeJobs: ProcessingJobView[],
+): DashboardLiveSnapshot {
+  return {
+    stats: cockpit.stats,
+    totalHours: cockpit.totalHours,
+    searchableHours: cockpit.searchableHours,
+    coveragePercent: cockpit.coveragePercent,
+    transcriptMoments: cockpit.transcriptMoments,
+    transcribedEpisodes: cockpit.transcribedEpisodes,
+    backlogEpisodes: cockpit.backlogEpisodes,
+    workerActive: cockpit.workerActive,
+    activeJobs,
+  };
+}
+
 export async function getDashboardLiveSnapshot(): Promise<DashboardLiveSnapshot> {
   const empty: DashboardLiveSnapshot = {
     stats: {
@@ -312,39 +329,11 @@ export async function getDashboardLiveSnapshot(): Promise<DashboardLiveSnapshot>
   }
 
   try {
-    const db = getDb();
-    const [stats, activeJobs, durations, searchableDur, transcribed, moments] =
-      await Promise.all([
-        getDashboardStats(),
-        getActiveProcessingJobs(),
-        db.episode.aggregate({ _sum: { durationSeconds: true } }),
-        db.episode.aggregate({
-          where: { isSearchable: true },
-          _sum: { durationSeconds: true },
-        }),
-        db.episode.count({ where: { isTranscribed: true } }),
-        db.transcriptSegment.count(),
-      ]);
-
-    const totalEpisodes = stats.totalEpisodes;
-    const searchable = stats.searchableEpisodes;
-    const totalSec = durations._sum.durationSeconds ?? 0;
-    const searchSec = searchableDur._sum.durationSeconds ?? 0;
-
-    return {
-      stats,
-      totalHours: totalSec / 3600,
-      searchableHours: searchSec / 3600,
-      coveragePercent:
-        totalEpisodes > 0
-          ? Math.round((searchable / totalEpisodes) * 100)
-          : 0,
-      transcriptMoments: moments,
-      transcribedEpisodes: transcribed,
-      backlogEpisodes: totalEpisodes - searchable,
-      workerActive: stats.activeJobs > 0 || stats.queuedJobs > 0,
-      activeJobs,
-    };
+    const [cockpit, activeJobs] = await Promise.all([
+      getCockpitSummaryWithRetry(),
+      getActiveProcessingJobs(),
+    ]);
+    return buildLiveSnapshot(cockpit, activeJobs);
   } catch (err) {
     logError("getDashboardLiveSnapshot", err);
     return empty;

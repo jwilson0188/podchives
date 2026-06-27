@@ -5,9 +5,6 @@ import { getEpisodes, getPodcasts } from "@/lib/data";
 
 export const metadata = { title: "Episodes" };
 
-export const revalidate = 300;
-
-/** No searchParams on the server — filters are client-side only (/api/episodes). */
 export default async function EpisodesPage() {
   const [episodes, archives] = await Promise.all([
     getEpisodes(),

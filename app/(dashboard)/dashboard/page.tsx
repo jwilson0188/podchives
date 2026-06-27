@@ -1,8 +1,9 @@
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import {
   getAutoSyncSummary,
+  getActiveProcessingJobs,
+  buildLiveSnapshot,
   getCockpitSummaryWithRetry,
-  getDashboardLiveSnapshot,
   getDataMode,
   getFeaturedClip,
   getRecentEpisodes,
@@ -12,27 +13,26 @@ import {
 
 export const metadata = { title: "Dashboard" };
 
-/** Cache shell for 5 min — live widgets poll APIs separately. */
-export const revalidate = 300;
-
 export default async function DashboardPage() {
   const [
     cockpit,
+    activeJobs,
     featuredClip,
     recentEpisodes,
     recentSearches,
     autoSync,
     usage,
-    liveSnapshot,
   ] = await Promise.all([
     getCockpitSummaryWithRetry(),
+    getActiveProcessingJobs(),
     getFeaturedClip(),
     getRecentEpisodes(6),
     getRecentSearches(5),
     getAutoSyncSummary(),
     getUsageStats(),
-    getDashboardLiveSnapshot(),
   ]);
+
+  const liveSnapshot = buildLiveSnapshot(cockpit, activeJobs);
 
   const isDemo = getDataMode() === "demo";
 

@@ -4,8 +4,6 @@ import { getDataMode, getUsageStats } from "@/lib/data";
 
 export const metadata = { title: "Usage / Compute" };
 
-export const revalidate = 300;
-
 export default async function UsagePage() {
   const usage = await getUsageStats();
   const isDemo = getDataMode() === "demo";

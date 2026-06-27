@@ -62,7 +62,7 @@ the full backfill**.
 
 | Key                     | Purpose                                                       |
 | ----------------------- | ------------------------------------------------------------- |
-| `DATABASE_URL`          | Supabase connection string                                    |
+| `DATABASE_URL`          | Supabase **transaction pooler** (port **6543**) + `?pgbouncer=true` — see note below |
 | `OPENAI_API_KEY`        | Search/embeddings if used server-side                         |
 | `NEXT_PUBLIC_DEMO_MODE` | `false` for live DB                                           |
 | `BETA_PASSWORD`         | Gate the app (`podchives26` — rotate in dashboard + redeploy) |
@@ -83,6 +83,8 @@ the full backfill**.
 
 
 **Secret file:** `cookies.txt` — export from Chrome while logged into YouTube (extension: "Get cookies.txt LOCALLY"). Never commit.
+
+**Vercel `DATABASE_URL`:** Use Supabase **Transaction pooler** (port **6543**), not session pooler (5432). Session mode caps at ~15 connections — `next build` and serverless lambdas will hit `EMAXCONNSESSION`. Example suffix: `?pgbouncer=true&connection_limit=1`. Render worker can keep port **5432** (long-lived process). Code also appends `connection_limit=1` automatically when missing.
 
 ---
 
@@ -124,6 +126,7 @@ Usage page and per-episode **Compute & cost** cards show measured spend (not gue
 | `Requested format is not available`     | Worker needs Deno + `player_client=default` (already in Dockerfile + `lib/youtube.ts`) |
 | Jobs stuck `running`                    | `npx tsx scripts/reset-stuck-jobs.ts`                                                  |
 | `prisma db push` fails (pool saturated) | Use transaction pooler (port 6543) or run one-off migration scripts                    |
+| Vercel build: `max clients reached`     | Vercel `DATABASE_URL` → port **6543** + `?pgbouncer=true`; dashboard layout is `force-dynamic` |
 | Thumbnails broken                       | Should be fixed — uses `i.ytimg.com` URLs, not worker disk paths                       |
 | Auto-sync not running                   | Per-source `autoSync` must be ON **and** `AUTO_SYNC_ENABLED=true` on Render            |
 | Dashboard resets to 0% / "No sources"   | Transient Supabase pool blip — should self-heal via cache; see **Navigation & live data** below |

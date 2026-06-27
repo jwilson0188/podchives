@@ -8,9 +8,6 @@ import { getPodcasts } from "@/lib/data";
 
 export const metadata = { title: "Search" };
 
-export const revalidate = 300;
-
-/** No searchParams on the server — route stays in the Next.js client router cache. */
 export default async function SearchPage() {
   const archives = await getPodcasts();
   const archiveOptions = archives.map((p) => ({ id: p.id, name: p.name }));
