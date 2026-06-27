@@ -10,8 +10,8 @@
  */
 import { generateSegmentEmbeddings } from "@/lib/embeddings";
 import {
-  markJobCompleted,
   markJobFailed,
+  updateJobProgress,
   updateJobStatus,
 } from "@/lib/queue";
 
@@ -30,7 +30,7 @@ export async function runEmbeddingJob(jobId: string, episodeId: string) {
     if (embedded === 0) {
       throw new Error("No segments were embedded");
     }
-    await markJobCompleted(jobId);
+    await updateJobProgress(jobId, 100);
     return { embedded };
   } catch (err: any) {
     await markJobFailed(jobId, err?.message ?? "Embedding failed");
@@ -58,7 +58,7 @@ export async function runIndexingJob(jobId: string, episodeId: string) {
       where: { id: episodeId },
       data: { isSearchable: true, processingStatus: "completed" },
     });
-    await markJobCompleted(jobId);
+    await updateJobProgress(jobId, 100);
   } catch (err: any) {
     await markJobFailed(jobId, err?.message ?? "Indexing failed");
     throw err;

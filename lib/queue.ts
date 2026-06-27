@@ -9,7 +9,12 @@
  *                  ↘ failed
  */
 import type { JobStatus, JobType } from "./constants";
-import { PROCESSING_ORDER } from "./constants";
+import {
+  EPISODE_PIPELINE,
+  getNextPipelineStep,
+  isAudioFilePath,
+  isPipelineJobType,
+} from "./pipeline";
 
 export type ProcessingJob = {
   id: string;
@@ -49,18 +54,95 @@ export async function createProcessingJob(args: {
  *   → transcript_segmentation → embedding → indexing
  */
 export async function queueEpisodeProcessing(episodeId: string) {
-  const jobs = [];
-  for (const jobType of PROCESSING_ORDER) {
-    jobs.push(await createProcessingJob({ episodeId, jobType }));
-  }
-  return jobs;
+  const firstStep = await resolveFirstPipelineJob(episodeId);
+  return [await createProcessingJob({ episodeId, jobType: firstStep })];
 }
 
-/** The pipeline minus thumbnail caching — used when re-queuing a backlog
- * episode that already has its thumbnail. */
-const DOWNLOAD_PIPELINE = PROCESSING_ORDER.filter(
-  (t) => t !== "thumbnail_cache",
-);
+async function resolveFirstPipelineJob(episodeId: string): Promise<JobType> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+  const ep = await db.episode.findUnique({
+    where: { id: episodeId },
+    select: {
+      thumbnailOriginalUrl: true,
+      thumbnailLocalPath: true,
+    },
+  });
+  if (ep?.thumbnailOriginalUrl && !ep.thumbnailLocalPath) {
+    return "thumbnail_cache";
+  }
+  return "download";
+}
+
+/**
+ * Enqueue the next pipeline step after `completedJobType` succeeds.
+ * Skips no-op steps (cached thumbnail, YouTube mp3 extract).
+ */
+export async function enqueueNextPipelineJob(
+  episodeId: string,
+  completedJobType: JobType,
+): Promise<boolean> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+
+  let next = getNextPipelineStep(completedJobType);
+  while (next) {
+    const ep = await db.episode.findUnique({
+      where: { id: episodeId },
+      select: {
+        thumbnailOriginalUrl: true,
+        thumbnailLocalPath: true,
+        audioFilePath: true,
+        sourcePlatform: true,
+      },
+    });
+    if (!ep) return false;
+
+    if (
+      next === "thumbnail_cache" &&
+      (!ep.thumbnailOriginalUrl || ep.thumbnailLocalPath)
+    ) {
+      completedJobType = "thumbnail_cache";
+      next = getNextPipelineStep("thumbnail_cache");
+      continue;
+    }
+
+    if (
+      next === "audio_extract" &&
+      ep.audioFilePath &&
+      isAudioFilePath(ep.audioFilePath)
+    ) {
+      completedJobType = "audio_extract";
+      next = getNextPipelineStep("audio_extract");
+      continue;
+    }
+
+    const existing = await db.processingJob.findFirst({
+      where: {
+        episodeId,
+        jobType: next,
+        status: { in: ["queued", ...INFLIGHT_STATUSES, "completed"] },
+      },
+      select: { id: true },
+    });
+    if (existing) return false;
+
+    await createProcessingJob({ episodeId, jobType: next });
+    return true;
+  }
+  return false;
+}
+
+/** Mark a job done and enqueue the next pipeline step when applicable. */
+export async function completePipelineJob(
+  jobId: string,
+  episodeId: string | null | undefined,
+  jobType: string,
+): Promise<void> {
+  await markJobCompleted(jobId);
+  if (!episodeId || !isPipelineJobType(jobType)) return;
+  await enqueueNextPipelineJob(episodeId, jobType);
+}
 
 const ACTIVE_STATUSES = [
   "queued",
@@ -106,23 +188,30 @@ async function countSourcePipelinePressure(sourceId: string): Promise<{
 }> {
   const { getDb } = await import("./db");
   const db = getDb();
-  const episodeScope = { episode: { sourceId } };
-  const [queuedPipelines, inflight] = await Promise.all([
-    db.processingJob.count({
-      where: {
-        ...episodeScope,
-        status: "queued",
-        jobType: "download",
-      },
+
+  const base = {
+    episode: { sourceId },
+    jobType: { in: EPISODE_PIPELINE as string[] },
+    episodeId: { not: null },
+  };
+
+  const [queuedRows, inflightRows] = await Promise.all([
+    db.processingJob.findMany({
+      where: { ...base, status: "queued" },
+      select: { episodeId: true },
+      distinct: ["episodeId"],
     }),
-    db.processingJob.count({
-      where: {
-        ...episodeScope,
-        status: { in: [...INFLIGHT_STATUSES] },
-      },
+    db.processingJob.findMany({
+      where: { ...base, status: { in: [...INFLIGHT_STATUSES] } },
+      select: { episodeId: true },
+      distinct: ["episodeId"],
     }),
   ]);
-  return { queuedPipelines, inflight };
+
+  return {
+    queuedPipelines: queuedRows.length,
+    inflight: inflightRows.length,
+  };
 }
 
 export async function canQueueEpisodeForSource(
@@ -189,16 +278,15 @@ export async function queueEpisodeProcessingIfNeeded(
   const active = await db.processingJob.findFirst({
     where: {
       episodeId,
-      jobType: { in: DOWNLOAD_PIPELINE as string[] },
+      jobType: { in: EPISODE_PIPELINE as string[] },
       status: { in: ACTIVE_STATUSES },
     },
     select: { id: true },
   });
   if (active) return false;
 
-  for (const jobType of DOWNLOAD_PIPELINE) {
-    await createProcessingJob({ episodeId, jobType });
-  }
+  const firstStep = await resolveFirstPipelineJob(episodeId);
+  await createProcessingJob({ episodeId, jobType: firstStep });
   return true;
 }
 
@@ -398,7 +486,13 @@ export async function markJobCompleted(jobId: string) {
 export async function markJobFailed(jobId: string, errorMessage: string) {
   const { getDb } = await import("./db");
   const db = getDb();
-  return db.processingJob.update({
+
+  const job = await db.processingJob.findUnique({
+    where: { id: jobId },
+    select: { episodeId: true, jobType: true },
+  });
+
+  await db.processingJob.update({
     where: { id: jobId },
     data: {
       status: "failed",
@@ -406,6 +500,22 @@ export async function markJobFailed(jobId: string, errorMessage: string) {
       completedAt: new Date(),
     },
   });
+
+  // Drop orphaned downstream steps so failures don't cascade as noise.
+  if (job?.episodeId && isPipelineJobType(job.jobType)) {
+    await db.processingJob.updateMany({
+      where: {
+        episodeId: job.episodeId,
+        status: "queued",
+        jobType: { in: EPISODE_PIPELINE as string[] },
+      },
+      data: {
+        status: "failed",
+        errorMessage: `skipped: ${job.jobType} failed`,
+        completedAt: new Date(),
+      },
+    });
+  }
 }
 
 export async function retryFailedJob(jobId: string) {

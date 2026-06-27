@@ -10,8 +10,10 @@
 import os from "node:os";
 import fs from "node:fs";
 import {
+  completePipelineJob,
   getNextQueuedJob,
   markJobFailed,
+  updateJobProgress,
   updateJobStatus,
 } from "@/lib/queue";
 import { runSourceSyncJob } from "./youtubeIngestWorker";
@@ -50,40 +52,51 @@ export async function processOnce(
 
       case "thumbnail_cache":
         await runThumbnailCacheJob(job.id, job.episode_id);
+        await completePipelineJob(job.id, job.episode_id, "thumbnail_cache");
         break;
 
       case "download":
         await runDownloadJob(job.id, job.episode_id);
+        await completePipelineJob(job.id, job.episode_id, "download");
         break;
 
       case "audio_extract":
         if (!job.episode_id)
           throw new Error("audio_extract job missing episode_id");
         await runAudioExtractJob(job.id, job.episode_id);
+        await completePipelineJob(job.id, job.episode_id, "audio_extract");
         break;
 
       case "transcription":
         if (!job.episode_id)
           throw new Error("transcription job missing episode_id");
         await runTranscriptionJob(job.id, job.episode_id);
+        await completePipelineJob(job.id, job.episode_id, "transcription");
         break;
 
       case "transcript_segmentation":
         if (!job.episode_id)
           throw new Error("transcript_segmentation job missing episode_id");
         await runSegmentationJob(job.id, job.episode_id);
+        await completePipelineJob(
+          job.id,
+          job.episode_id,
+          "transcript_segmentation",
+        );
         break;
 
       case "embedding":
         if (!job.episode_id)
           throw new Error("embedding job missing episode_id");
         await runEmbeddingJob(job.id, job.episode_id);
+        await completePipelineJob(job.id, job.episode_id, "embedding");
         break;
 
       case "indexing":
         if (!job.episode_id)
           throw new Error("indexing job missing episode_id");
         await runIndexingJob(job.id, job.episode_id);
+        await completePipelineJob(job.id, job.episode_id, "indexing");
         break;
 
       default:
@@ -114,49 +127,63 @@ export async function processOnce(
 async function runThumbnailCacheJob(jobId: string, episodeId: string | null) {
   if (!episodeId) throw new Error("thumbnail_cache missing episode_id");
   const { getDb } = await import("@/lib/db");
-  const { markJobCompleted } = await import("@/lib/queue");
   const db = getDb();
 
   const ep = await db.episode.findUnique({ where: { id: episodeId } });
   if (!ep) throw new Error(`Episode ${episodeId} not found`);
   if (!ep.thumbnailOriginalUrl) {
-    await markJobCompleted(jobId);
     return;
   }
   await updateJobStatus(jobId, "running", { progressPercent: 10 });
-  const localPath = await cacheThumbnail(ep.id, ep.thumbnailOriginalUrl);
+  const localThumbPath = await cacheThumbnail(ep.id, ep.thumbnailOriginalUrl);
   await db.episode.update({
     where: { id: episodeId },
-    data: { thumbnailLocalPath: localPath },
+    data: { thumbnailLocalPath: localThumbPath },
   });
-  await markJobCompleted(jobId);
+  await updateJobProgress(jobId, 100);
 }
 
 async function runDownloadJob(jobId: string, episodeId: string | null) {
   if (!episodeId) throw new Error("download missing episode_id");
   const { getDb } = await import("@/lib/db");
-  const { markJobCompleted } = await import("@/lib/queue");
   const db = getDb();
 
   const ep = await db.episode.findUnique({ where: { id: episodeId } });
   if (!ep) throw new Error(`Episode ${episodeId} not found`);
 
-  await updateJobStatus(jobId, "downloading", { progressPercent: 10 });
+  await updateJobStatus(jobId, "downloading", { progressPercent: 5 });
 
-  // Track the download row up-front so the UI shows progress immediately.
   const dl = await db.download.create({
     data: {
       sourceId: ep.sourceId,
       episodeId: ep.id,
       downloadType: "audio",
       status: "downloading",
-      progressPercent: 10,
+      progressPercent: 5,
       startedAt: new Date(),
     },
   });
 
+  let lastPct = 5;
+  let lastWrite = 0;
+
+  const reportProgress = async (pct: number) => {
+    const rounded = Math.max(5, Math.min(99, Math.round(pct)));
+    const now = Date.now();
+    if (rounded <= lastPct && now - lastWrite < 1500) return;
+    lastPct = rounded;
+    lastWrite = now;
+    await Promise.all([
+      updateJobProgress(jobId, rounded),
+      db.download.update({
+        where: { id: dl.id },
+        data: { progressPercent: rounded, status: "downloading" },
+      }),
+    ]);
+  };
+
   try {
-    const audioPath = await downloadAudio(ep.id, ep.sourceUrl);
+    const audioPath = await downloadAudio(ep.id, ep.sourceUrl, reportProgress);
 
     // Record the real file size so the Usage page reports measured storage
     // instead of a bitrate estimate. Files are ephemeral; this number persists.
@@ -186,7 +213,7 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
       },
     });
 
-    await markJobCompleted(jobId);
+    await updateJobProgress(jobId, 100);
   } catch (err: any) {
     await db.download.update({
       where: { id: dl.id },
@@ -208,7 +235,6 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
 async function runAudioExtractJob(jobId: string, episodeId: string | null) {
   if (!episodeId) throw new Error("audio_extract missing episode_id");
   const { getDb } = await import("@/lib/db");
-  const { markJobCompleted } = await import("@/lib/queue");
   const db = getDb();
 
   const ep = await db.episode.findUnique({ where: { id: episodeId } });
@@ -225,7 +251,7 @@ async function runAudioExtractJob(jobId: string, episodeId: string | null) {
       data: { audioFilePath: finalPath },
     });
   }
-  await markJobCompleted(jobId);
+  await updateJobProgress(jobId, 100);
 }
 
 /**
