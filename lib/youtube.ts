@@ -56,6 +56,126 @@ export type YouTubeChannel = {
   videos: YouTubeVideo[];
 };
 
+type YtThumbnail = {
+  url?: string;
+  height?: number;
+  width?: number;
+  id?: string;
+};
+
+/** Prefer the channel avatar from yt-dlp playlist/channel JSON. */
+export function pickChannelAvatarUrl(thumbnails: YtThumbnail[]): string | null {
+  if (!thumbnails?.length) return null;
+  const avatar = thumbnails.find(
+    (t) =>
+      t.id === "avatar_uncropped" ||
+      t.id === "7" ||
+      t.id === "6" ||
+      (t.url?.includes("yt3.googleusercontent.com") &&
+        t.height &&
+        t.width &&
+        Math.abs(t.height - t.width) <= 32),
+  );
+  if (avatar?.url) return avatar.url;
+  const squares = thumbnails
+    .filter(
+      (t) =>
+        t.url &&
+        t.height &&
+        t.width &&
+        Math.abs(t.height - t.width) <= 32,
+    )
+    .sort((a, b) => (b.height ?? 0) - (a.height ?? 0));
+  return squares[0]?.url ?? null;
+}
+
+function parseChannelProfileJson(
+  info: Record<string, unknown>,
+): Omit<YouTubeChannel, "videos"> | null {
+  if (!info || typeof info !== "object") return null;
+
+  const thumbnails = (info.thumbnails as YtThumbnail[]) ?? [];
+  const channelUrl =
+    (info.channel_url as string | undefined) ??
+    (info.uploader_url as string | undefined) ??
+    (info.channel_id
+      ? `https://www.youtube.com/channel/${info.channel_id}`
+      : undefined);
+
+  const channelName =
+    (info.channel as string | undefined) ??
+    (info.uploader as string | undefined) ??
+    (info.title as string | undefined) ??
+    "Unknown channel";
+
+  const channelId =
+    (info.channel_id as string | undefined) ??
+    (typeof info.id === "string" && info.id.startsWith("UC")
+      ? info.id
+      : slugify(channelName));
+
+  return {
+    channelId,
+    channelName,
+    description: (info.description as string | undefined) ?? null,
+    thumbnailUrl: pickChannelAvatarUrl(thumbnails),
+    channelUrl: channelUrl ?? "",
+  };
+}
+
+/**
+ * Fetch channel name, description, and avatar via yt-dlp. Works for channel
+ * handles, `/channel/…` URLs, and playlists (follows `channel_url` when needed).
+ */
+export async function fetchYouTubeChannelProfile(
+  sourceUrl: string,
+): Promise<Omit<YouTubeChannel, "videos">> {
+  const out = await runYtDlp([
+    "--dump-single-json",
+    "--playlist-end",
+    "1",
+    sourceUrl,
+  ]);
+  let info: Record<string, unknown>;
+  try {
+    info = JSON.parse(out.trim());
+  } catch {
+    throw new Error("yt-dlp returned invalid channel JSON");
+  }
+
+  let profile = parseChannelProfileJson(info);
+  if (!profile) {
+    throw new Error("Could not parse YouTube channel profile");
+  }
+
+  if (
+    !profile.thumbnailUrl &&
+    profile.channelUrl &&
+    profile.channelUrl !== sourceUrl
+  ) {
+    try {
+      const channelOut = await runYtDlp([
+        "--dump-single-json",
+        "--playlist-end",
+        "1",
+        profile.channelUrl,
+      ]);
+      const channelInfo = JSON.parse(channelOut.trim()) as Record<
+        string,
+        unknown
+      >;
+      const channelProfile = parseChannelProfileJson(channelInfo);
+      if (channelProfile?.thumbnailUrl) {
+        profile = { ...profile, thumbnailUrl: channelProfile.thumbnailUrl };
+      }
+    } catch {
+      // Playlist pages often lack avatars; secondary fetch is best-effort.
+    }
+  }
+
+  return profile;
+}
+
 /** Shared flags for yt-dlp. Cookies + a JS runtime are required for reliable
  * logged-in YouTube downloads as of late 2025 (see Dockerfile / yt-dlp EJS). */
 function buildYtDlpBaseArgs(): string[] {
@@ -222,22 +342,43 @@ export async function syncYouTubeSource(
   const args = ["--flat-playlist", "--dump-json", sourceUrl];
   if (opts.playlistEnd) args.push("--playlist-end", String(opts.playlistEnd));
 
-  const out = await runYtDlp(args);
-  const lines = out.split("\n").filter(Boolean);
+  const [profileResult, videoOut] = await Promise.allSettled([
+    fetchYouTubeChannelProfile(sourceUrl),
+    runYtDlp(args),
+  ]);
+
+  const profile =
+    profileResult.status === "fulfilled" ? profileResult.value : null;
+  if (profileResult.status === "rejected" && process.env.NODE_ENV !== "test") {
+    console.warn(
+      `[youtube] channel profile fetch failed for ${sourceUrl}: ${profileResult.reason?.message ?? profileResult.reason}`,
+    );
+  }
+
+  if (videoOut.status === "rejected") {
+    throw videoOut.reason;
+  }
+
+  const lines = videoOut.value.split("\n").filter(Boolean);
   const videos: YouTubeVideo[] = lines
     .map(parseInfoLine)
     .filter((v): v is YouTubeVideo => v !== null);
 
   const channelName =
-    videos.find((v) => v.channelName)?.channelName ?? "Unknown channel";
-  const channelId = videos.find((v) => v.channelId)?.channelId ?? null;
+    profile?.channelName ??
+    videos.find((v) => v.channelName)?.channelName ??
+    "Unknown channel";
+  const channelId =
+    profile?.channelId ??
+    videos.find((v) => v.channelId)?.channelId ??
+    slugify(channelName);
 
   return {
-    channelId: channelId ?? slugify(channelName),
+    channelId,
     channelName,
-    description: null,
-    thumbnailUrl: null,
-    channelUrl: sourceUrl,
+    description: profile?.description ?? null,
+    thumbnailUrl: profile?.thumbnailUrl ?? null,
+    channelUrl: profile?.channelUrl || sourceUrl,
     videos,
   };
 }

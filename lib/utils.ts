@@ -116,6 +116,25 @@ export function buildTimestampUrl(
  * is NOT reachable from the web app, so we only ever emit real http(s) URLs:
  * the original CDN URL, a derived YouTube thumbnail, or a neutral placeholder.
  */
+export function resolveArchiveCoverUrl(opts: {
+  coverImageUrl?: string | null;
+  latestEpisode?: {
+    thumbnailOriginalUrl?: string | null;
+    externalId?: string | null;
+  } | null;
+}): string {
+  const cover = opts.coverImageUrl?.trim();
+  if (cover && /^https?:\/\//i.test(cover)) return cover;
+  if (opts.latestEpisode) {
+    const fallback = resolveThumbnailUrl({
+      originalUrl: opts.latestEpisode.thumbnailOriginalUrl,
+      externalId: opts.latestEpisode.externalId,
+    });
+    if (fallback !== "/placeholder-thumb.svg") return fallback;
+  }
+  return "";
+}
+
 export function resolveThumbnailUrl(opts: {
   localPath?: string | null;
   originalUrl?: string | null;

@@ -44,12 +44,18 @@ export default async function ArchivesPage() {
               className="card card-hover overflow-hidden flex flex-col"
             >
               <div className="aspect-video bg-bg-elevated relative overflow-hidden border-b border-border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.coverImageUrl}
-                  alt={p.name}
-                  className="w-full h-full object-cover opacity-90"
-                />
+                {p.coverImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.coverImageUrl}
+                    alt={p.name}
+                    className="w-full h-full object-cover opacity-90"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-text-muted text-4xl font-semibold">
+                    {p.name.charAt(0)}
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-bg-card via-transparent to-transparent" />
                 <div className="absolute bottom-3 left-3 right-3">
                   <h2 className="font-semibold text-text-primary text-lg leading-tight">
