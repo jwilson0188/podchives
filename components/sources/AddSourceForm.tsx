@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ErrorMessage } from "@/components/ui/ErrorMessage";
 
 type SourceType = "youtube_channel" | "youtube_playlist" | "youtube_video";
 
@@ -145,15 +146,11 @@ export function AddSourceForm() {
         </button>
       </div>
 
-      {message.kind && (
-        <div
-          className={
-            "rounded-md px-3 py-2 text-sm " +
-            (message.kind === "success"
-              ? "bg-success-muted text-success border border-success/30"
-              : "bg-danger-muted text-danger border border-danger/30")
-          }
-        >
+      {message.kind === "error" && (
+        <ErrorMessage>{message.text}</ErrorMessage>
+      )}
+      {message.kind === "success" && (
+        <div className="rounded-md px-3 py-2 text-sm bg-success-muted text-success border border-success/30">
           {message.text}
         </div>
       )}

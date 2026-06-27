@@ -26,11 +26,14 @@ export function ProcessingQueueLiveBody({
         title="Active"
         jobs={active}
         emptyTitle="No jobs running right now."
+        defaultOpen
       />
       <ProcessingQueueTable
         title="Failed"
         jobs={failed}
         emptyTitle="No failed jobs. All clear."
+        defaultOpen={false}
+        totalCount={totals.failed}
       />
       <ProcessingQueueTable
         title="Queued"
@@ -40,11 +43,14 @@ export function ProcessingQueueLiveBody({
             ? `Nothing in the first 50 — ${totals.queued.toLocaleString()} total queued.`
             : "Nothing queued."
         }
+        defaultOpen={queued.length > 0}
+        totalCount={totals.queued}
       />
       <ProcessingQueueTable
         title="Recently completed"
         jobs={completed}
         emptyTitle="No completed jobs yet."
+        defaultOpen={false}
       />
     </>
   );

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -9,6 +12,13 @@ export function ProcessingJobRow({ job }: { job: DemoProcessingJob }) {
   const isFailed = job.status === "failed";
   const isCompleted = job.status === "completed";
   const isQueued = job.status === "queued";
+  const metaLine = [
+    job.podcastName,
+    job.jobType.replace(/_/g, " "),
+    job.workerId,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="card p-3 sm:p-4 min-w-0 overflow-hidden">
@@ -20,15 +30,26 @@ export function ProcessingJobRow({ job }: { job: DemoProcessingJob }) {
           >
             {job.episodeTitle}
           </Link>
-          <div className="text-[11px] text-text-muted font-mono mt-0.5 break-words [overflow-wrap:anywhere]">
-            {job.podcastName} · {job.jobType.replace(/_/g, " ")}
-            {job.workerId && (
-              <>
-                {" "}
-                · <span className="break-all">{job.workerId}</span>
-              </>
-            )}
-          </div>
+          {job.workerId ? (
+            <Collapsible
+              defaultOpen={false}
+              className="mt-2 border-border/60 bg-bg-subtle/50"
+              headerClassName="px-2 py-1.5"
+              contentClassName="px-2 pb-2 pt-0 border-t-0 text-[11px] text-text-muted font-mono break-all"
+              title={
+                <span className="text-[11px] text-text-muted font-mono">
+                  {job.podcastName} · {job.jobType.replace(/_/g, " ")}
+                </span>
+              }
+              summary={job.workerId}
+            >
+              {metaLine}
+            </Collapsible>
+          ) : (
+            <div className="text-[11px] text-text-muted font-mono mt-0.5 break-words [overflow-wrap:anywhere]">
+              {job.podcastName} · {job.jobType.replace(/_/g, " ")}
+            </div>
+          )}
         </div>
         <StatusBadge status={job.status} className="self-start shrink-0" />
       </div>

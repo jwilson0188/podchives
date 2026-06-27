@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { DemoTranscriptSegment } from "@/lib/demoData";
+import { Collapsible } from "@/components/ui/Collapsible";
 import { EpisodePlayer, type PlayerHandle } from "./EpisodePlayer";
 import { formatTimestamp, highlight } from "@/lib/utils";
 
@@ -127,10 +128,18 @@ export function TranscriptViewer({
         </div>
       </div>
 
-      <div className="card p-4 min-w-0">
-        <div className="text-[10px] uppercase tracking-widest text-text-muted mb-2 font-medium">
-          Source attribution
-        </div>
+      <Collapsible
+        variant="card"
+        defaultOpen={false}
+        title={
+          <span className="text-[10px] uppercase tracking-widest text-text-muted font-medium">
+            Source attribution
+          </span>
+        }
+        summary={`${archiveName} · ${sourceName}`}
+        headerClassName="px-4 py-3"
+        contentClassName="px-4 pb-4 pt-0 border-t-0"
+      >
         <div className="space-y-2 text-sm font-mono min-w-0">
           <Row label="archive" value={archiveName} />
           <Row
@@ -162,7 +171,7 @@ export function TranscriptViewer({
             }
           />
         </div>
-      </div>
+      </Collapsible>
     </div>
   );
 }
