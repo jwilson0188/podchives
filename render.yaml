@@ -12,20 +12,13 @@
 services:
   - type: worker
     name: podchives-worker
-    runtime: node
+    runtime: docker # ffmpeg + yt-dlp are installed in the Dockerfile
+    dockerfilePath: ./Dockerfile
     plan: starter # $7/mo. Use `free` to test first; free workers sleep.
     region: oregon
     branch: main
-    buildCommand: |
-      apt-get update && apt-get install -y ffmpeg curl
-      curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-      chmod +x /usr/local/bin/yt-dlp
-      npm install --include=dev && npx prisma generate && npx tsc --noEmit
-    startCommand: npm run worker
     autoDeploy: true
     envVars:
-      - key: NODE_VERSION
-        value: 20.18.0
       - key: NODE_ENV
         value: production
       - key: NEXT_PUBLIC_DEMO_MODE
@@ -36,10 +29,11 @@ services:
         value: "false"
       - key: MAX_JOBS_PER_RUN
         value: "10"
+      # Render mounts secret files at /etc/secrets/<filename> at runtime.
+      - key: YOUTUBE_COOKIES_FILE
+        value: /etc/secrets/cookies.txt
       # ---- secrets — set in the Render dashboard, not here ----
       - key: DATABASE_URL
         sync: false # set in Render UI, do not commit
       - key: OPENAI_API_KEY
         sync: false
-      - key: YOUTUBE_COOKIES_FILE
-        sync: false # optional; only set if you upload a cookies.txt at /opt/render/project/src/cookies.txt
