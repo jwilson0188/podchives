@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
+import { AutoRefresh } from "@/components/ui/AutoRefresh";
 import { COST_MODEL } from "@/lib/constants";
 import { getDataMode, getUsageStats } from "@/lib/data";
 
@@ -20,6 +21,7 @@ export default async function UsagePage() {
 
   return (
     <div>
+      {!isDemo && <AutoRefresh intervalMs={15_000} />}
       <PageHeader
         eyebrow="ops // usage"
         title="Usage / Compute"
