@@ -275,3 +275,85 @@ export async function processUntilEmpty(opts: {
   }
   return results;
 }
+
+/**
+ * Drain the queue with up to `concurrency` jobs running in parallel.
+ *
+ * Spawns N independent "lanes"; each lane atomically claims the next queued
+ * job (via FOR UPDATE SKIP LOCKED, so claims never collide) and processes it,
+ * looping until the queue has no eligible work. Returns when all lanes idle.
+ *
+ * Throughput scales because most jobs are I/O-bound (yt-dlp downloads, OpenAI
+ * calls) and spend their time waiting on the network, not the CPU.
+ */
+export async function processConcurrently(
+  opts: {
+    workerId?: string;
+    concurrency?: number;
+    maxJobs?: number;
+  } = {},
+): Promise<ProcessOnceResult[]> {
+  const baseId = opts.workerId ?? DEFAULT_WORKER_ID;
+  const concurrency = Math.max(1, opts.concurrency ?? 1);
+  const maxJobs = opts.maxJobs ?? Number.POSITIVE_INFINITY;
+
+  const { hasDatabase, getDb } = await import("@/lib/db");
+  if (!hasDatabase()) {
+    console.warn("[worker] DATABASE_URL not set — nothing to process.");
+    return [];
+  }
+
+  const db = getDb();
+  const run = await db.workerRun.create({
+    data: { workerName: baseId, startedAt: new Date(), status: "running" },
+  });
+
+  const results: ProcessOnceResult[] = [];
+  let started = 0; // jobs committed to (bounds maxJobs across lanes)
+
+  async function lane(laneIdx: number) {
+    const laneId = `${baseId}#${laneIdx}`;
+    while (started < maxJobs) {
+      started++;
+      const r = await processOnce(laneId);
+      if (!r) {
+        started--; // nothing left to claim — let this lane go idle
+        return;
+      }
+      results.push(r);
+      console.log(
+        `[worker:${laneIdx}] ${r.jobType} ${r.status}` +
+          (r.error ? ` — ${r.error}` : ""),
+      );
+    }
+  }
+
+  try {
+    await Promise.all(
+      Array.from({ length: concurrency }, (_, i) => lane(i)),
+    );
+    await db.workerRun.update({
+      where: { id: run.id },
+      data: {
+        completedAt: new Date(),
+        jobsProcessed: results.length,
+        status: "completed",
+        logs: results
+          .map((r) => `${r.jobType} ${r.status}${r.error ? ` ${r.error}` : ""}`)
+          .join("\n"),
+      },
+    });
+  } catch (err: any) {
+    await db.workerRun.update({
+      where: { id: run.id },
+      data: {
+        completedAt: new Date(),
+        jobsProcessed: results.length,
+        status: "failed",
+        logs: err?.message ?? String(err),
+      },
+    });
+    throw err;
+  }
+  return results;
+}

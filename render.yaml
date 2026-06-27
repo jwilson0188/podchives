@@ -29,6 +29,11 @@ services:
         value: "false"
       - key: MAX_JOBS_PER_RUN
         value: "10"
+      # Run up to N jobs in parallel. Most jobs wait on network I/O (yt-dlp,
+      # OpenAI), so this drains the backlog much faster. Lower it if YouTube
+      # rate-limits parallel downloads or the instance runs hot.
+      - key: WORKER_CONCURRENCY
+        value: "10"
       # Auto-sync is controlled per-source in the app (Sources page → the
       # "auto-sync" toggle on each source). Every source ships OFF, so no
       # backfill starts until you flip one on. AUTO_SYNC_ENABLED is just a

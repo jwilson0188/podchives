@@ -76,7 +76,11 @@ export default function SettingsPage() {
             value="Render worker — continuous"
             hint="Polls the job queue every ~5s, 24/7. There is no 'local' processing in production."
           />
-          <SettingRow label="Concurrency" value="1 job at a time" />
+          <SettingRow
+            label="Concurrency"
+            value="up to 10 jobs in parallel"
+            hint="Most jobs wait on network I/O (downloads, OpenAI), so the worker runs several at once to drain the backlog faster."
+          />
           <SettingRow
             label="Auto-sync"
             value="per-source — every ~6h"

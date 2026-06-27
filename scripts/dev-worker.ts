@@ -7,13 +7,20 @@
  */
 import "tsx/esm/api";
 import { getDb } from "../lib/db";
-import { processUntilEmpty } from "../workers/processingWorker";
+import { processConcurrently } from "../workers/processingWorker";
 import { enqueueDueSourceSyncs } from "../lib/queue";
 
 // Prisma loads .env (OPENAI_API_KEY, DATABASE_URL, etc.) on first connect.
 getDb();
 
 const POLL_INTERVAL_MS = 5_000;
+
+// How many jobs to run in parallel. Most jobs are I/O-bound (downloads, OpenAI
+// calls), so concurrency drains the backlog much faster. Tune via env.
+const WORKER_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.WORKER_CONCURRENCY) || 1,
+);
 
 // Auto-sync: periodically re-sync every source so new uploads get ingested and
 // any backlog stragglers get re-queued. Disable with AUTO_SYNC_ENABLED=false.
@@ -44,7 +51,9 @@ async function loop() {
   while (running) {
     try {
       await maybeAutoSync();
-      const results = await processUntilEmpty({ maxJobs: 1 });
+      const results = await processConcurrently({
+        concurrency: WORKER_CONCURRENCY,
+      });
       if (results.length === 0) {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       }
@@ -64,7 +73,9 @@ process.on("SIGTERM", () => {
   running = false;
 });
 
-console.log("[dev-worker] polling for queued jobs (Ctrl+C to stop)…");
+console.log(
+  `[dev-worker] polling for queued jobs (concurrency ${WORKER_CONCURRENCY}, Ctrl+C to stop)…`,
+);
 console.log(
   AUTO_SYNC_ENABLED
     ? `[dev-worker] auto-sync ON — re-syncing sources every ${AUTO_SYNC_INTERVAL_MIN}m`
