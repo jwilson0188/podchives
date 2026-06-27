@@ -9,7 +9,7 @@ import "tsx/esm/api";
 import { getDb } from "../lib/db";
 import { isWorkerEnabled } from "../lib/workerControl";
 import { processConcurrently } from "../workers/processingWorker";
-import { enqueueDueSourceSyncs } from "../lib/queue";
+import { enqueueDueSourceSyncs, reclaimStaleJobs } from "../lib/queue";
 
 // Prisma loads .env (OPENAI_API_KEY, DATABASE_URL, etc.) on first connect.
 getDb();
@@ -33,6 +33,7 @@ const SYNC_CHECK_MS = 60_000; // don't hit the DB for due-syncs more than 1×/mi
 
 let running = true;
 let lastSyncCheck = 0;
+let lastStaleCheck = 0;
 
 async function maybeAutoSync() {
   if (!AUTO_SYNC_ENABLED) return;
@@ -48,6 +49,17 @@ async function maybeAutoSync() {
   }
 }
 
+async function maybeReclaimStale() {
+  if (Date.now() - lastStaleCheck < 5 * 60_000) return;
+  lastStaleCheck = Date.now();
+  try {
+    const n = await reclaimStaleJobs(45);
+    if (n > 0) console.log(`[dev-worker] reclaimed ${n} stale job(s)`);
+  } catch (err) {
+    console.error("[dev-worker] stale reclaim failed", err);
+  }
+}
+
 async function loop() {
   while (running) {
     try {
@@ -56,6 +68,7 @@ async function loop() {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         continue;
       }
+      await maybeReclaimStale();
       await maybeAutoSync();
       const results = await processConcurrently({
         concurrency: WORKER_CONCURRENCY,
