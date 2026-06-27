@@ -204,24 +204,58 @@ export async function getCockpitSummary(): Promise<CockpitSummary> {
 
   try {
     const db = getDb();
-    const [archives, sources, stats, durations, searchableDur, transcribed, moments] =
-      await Promise.all([
-        getPodcasts(),
-        getSources(),
-        getDashboardStats(),
-        db.episode.aggregate({ _sum: { durationSeconds: true } }),
-        db.episode.aggregate({
-          where: { isSearchable: true },
-          _sum: { durationSeconds: true },
-        }),
-        db.episode.count({ where: { isTranscribed: true } }),
-        db.transcriptSegment.count(),
-      ]);
+    const settled = await Promise.allSettled([
+      getPodcasts(),
+      getSources(),
+      getDashboardStats(),
+      db.episode.aggregate({ _sum: { durationSeconds: true } }),
+      db.episode.aggregate({
+        where: { isSearchable: true },
+        _sum: { durationSeconds: true },
+      }),
+      db.episode.count({ where: { isTranscribed: true } }),
+      db.transcriptSegment.count(),
+    ]);
+
+    const archives =
+      settled[0].status === "fulfilled" ? settled[0].value : [];
+    const sources =
+      settled[1].status === "fulfilled" ? settled[1].value : [];
+    const stats =
+      settled[2].status === "fulfilled"
+        ? settled[2].value
+        : empty.stats;
+    const durations =
+      settled[3].status === "fulfilled"
+        ? settled[3].value
+        : { _sum: { durationSeconds: 0 } };
+    const searchableDur =
+      settled[4].status === "fulfilled"
+        ? settled[4].value
+        : { _sum: { durationSeconds: 0 } };
+    const transcribed =
+      settled[5].status === "fulfilled" ? settled[5].value : 0;
+    const moments =
+      settled[6].status === "fulfilled" ? settled[6].value : 0;
+
+    for (const r of settled) {
+      if (r.status === "rejected") {
+        logError("getCockpitSummary partial", r.reason);
+      }
+    }
 
     const totalEpisodes = stats.totalEpisodes;
     const searchable = stats.searchableEpisodes;
     const totalSec = durations._sum.durationSeconds ?? 0;
     const searchSec = searchableDur._sum.durationSeconds ?? 0;
+
+    if (
+      totalEpisodes === 0 &&
+      archives.length === 0 &&
+      sources.length === 0
+    ) {
+      return empty;
+    }
 
     return {
       archives,
@@ -250,9 +284,11 @@ async function sleep(ms: number): Promise<void> {
 
 /** One retry helps survive transient Supabase pool blips on Vercel. */
 export async function getCockpitSummaryWithRetry(): Promise<CockpitSummary> {
-  const first = await getCockpitSummary();
-  if (dashboardHasArchiveData(first)) return first;
-  await sleep(400);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await getCockpitSummary();
+    if (dashboardHasArchiveData(result)) return result;
+    if (attempt < 2) await sleep(300 * (attempt + 1));
+  }
   return getCockpitSummary();
 }
 

@@ -16,6 +16,8 @@ the full backfill**.
 - [x] **Thumbnails** — served from YouTube CDN (not worker-local paths)
 - [x] **Worker concurrency** — up to 10 jobs in parallel (`WORKER_CONCURRENCY=10`)
 
+
+
 ### UI / creator features (recent)
 
 - [x] **Dashboard cockpit** — brand hero, coverage ring, pipeline funnel, quick actions
@@ -30,16 +32,20 @@ the full backfill**.
 - [x] **Episodes filter** — "Fully searchable" + archive dropdown on `/episodes`
 - [x] **Mobile add source** — form first on Sources page; `/sources#add-source` deep link
 
+
+
 ### Not done yet / needs your action
 
 - [ ] **Flip auto-sync ON** when ready for full backfill (~$50–65 one-time Whisper cost for ~186 episodes)
-- [ ] **Vercel `BETA_PASSWORD`** — set to `podchives26` in Vercel dashboard if not done yet (local `.env` already updated; redeploy required)
+- [ ] **Vercel** `BETA_PASSWORD` — set to `podchives26` in Vercel dashboard if not done yet (local `.env` already updated; redeploy required)
 - [ ] **Full backfill smoke test** — confirm coverage ring climbs and search works across many episodes
 - [ ] **Cookie refresh** — re-export `cookies.txt` when YouTube downloads start 403-ing
 - [ ] **Clip Engine (v1)** — see spec below; next major feature build
 - [ ] **Caption Engine (v1)** — see spec below; pairs with Clip Engine for social export
 
 ---
+
+
 
 ## Architecture (quick reference)
 
@@ -55,17 +61,23 @@ the full backfill**.
 
 ---
 
+
+
 ## Environment variables
+
+
 
 ### Vercel (web app)
 
 
-| Key                     | Purpose                                                       |
-| ----------------------- | ------------------------------------------------------------- |
+| Key                     | Purpose                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------ |
 | `DATABASE_URL`          | Supabase **transaction pooler** (port **6543**) + `?pgbouncer=true` — see note below |
-| `OPENAI_API_KEY`        | Search/embeddings if used server-side                         |
-| `NEXT_PUBLIC_DEMO_MODE` | `false` for live DB                                           |
-| `BETA_PASSWORD`         | Gate the app (`podchives26` — rotate in dashboard + redeploy) |
+| `OPENAI_API_KEY`        | Search/embeddings if used server-side                                                |
+| `NEXT_PUBLIC_DEMO_MODE` | `false` for live DB                                                                  |
+| `BETA_PASSWORD`         | Gate the app (`podchives26` — rotate in dashboard + redeploy)                        |
+
+
 
 
 ### Render (worker)
@@ -84,9 +96,11 @@ the full backfill**.
 
 **Secret file:** `cookies.txt` — export from Chrome while logged into YouTube (extension: "Get cookies.txt LOCALLY"). Never commit.
 
-**Vercel `DATABASE_URL`:** Use Supabase **Transaction pooler** (port **6543**), not session pooler (5432). Session mode caps at ~15 connections — `next build` and serverless lambdas will hit `EMAXCONNSESSION`. Example suffix: `?pgbouncer=true&connection_limit=1`. Render worker can keep port **5432** (long-lived process). Code also appends `connection_limit=1` automatically when missing.
+**Vercel** `DATABASE_URL`**:** Use Supabase **Transaction pooler** (port **6543**), not session pooler (5432). Session mode caps at ~15 connections — `next build` and serverless lambdas will hit `EMAXCONNSESSION`. Example suffix: `?pgbouncer=true&connection_limit=1`. Render worker can keep port **5432** (long-lived process). Code also appends `connection_limit=1` automatically when missing.
 
 ---
+
+
 
 ## Day-one workflow (after auto-sync is on)
 
@@ -100,6 +114,8 @@ the full backfill**.
 To pause backfill: turn **Auto-sync OFF** on Dashboard or per source. In-flight jobs finish; no new re-syncs queue.
 
 ---
+
+
 
 ## Costs (approximate)
 
@@ -117,23 +133,27 @@ Usage page and per-episode **Compute & cost** cards show measured spend (not gue
 
 ---
 
+
+
 ## Troubleshooting
 
 
-| Symptom                                 | Fix                                                                                    |
-| --------------------------------------- | -------------------------------------------------------------------------------------- |
-| Downloads fail with 403                 | Re-export `cookies.txt` → update Render Secret File → redeploy worker                  |
-| `Requested format is not available`     | Worker needs Deno + `player_client=default` (already in Dockerfile + `lib/youtube.ts`) |
-| Jobs stuck `running`                    | `npx tsx scripts/reset-stuck-jobs.ts`                                                  |
-| `prisma db push` fails (pool saturated) | Use transaction pooler (port 6543) or run one-off migration scripts                    |
-| Vercel build: `max clients reached`     | Vercel `DATABASE_URL` → port **6543** + `?pgbouncer=true`; dashboard layout is `force-dynamic` |
-| Thumbnails broken                       | Should be fixed — uses `i.ytimg.com` URLs, not worker disk paths                       |
-| Auto-sync not running                   | Per-source `autoSync` must be ON **and** `AUTO_SYNC_ENABLED=true` on Render            |
+| Symptom                                 | Fix                                                                                             |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Downloads fail with 403                 | Re-export `cookies.txt` → update Render Secret File → redeploy worker                           |
+| `Requested format is not available`     | Worker needs Deno + `player_client=default` (already in Dockerfile + `lib/youtube.ts`)          |
+| Jobs stuck `running`                    | `npx tsx scripts/reset-stuck-jobs.ts`                                                           |
+| `prisma db push` fails (pool saturated) | Use transaction pooler (port 6543) or run one-off migration scripts                             |
+| Vercel build: `max clients reached`     | Vercel `DATABASE_URL` → port **6543** + `?pgbouncer=true`; dashboard layout is `force-dynamic`  |
+| Thumbnails broken                       | Should be fixed — uses `i.ytimg.com` URLs, not worker disk paths                                |
+| Auto-sync not running                   | Per-source `autoSync` must be ON **and** `AUTO_SYNC_ENABLED=true` on Render                     |
 | Dashboard resets to 0% / "No sources"   | Transient Supabase pool blip — should self-heal via cache; see **Navigation & live data** below |
-| Back nav repopulates whole archive      | Episodes use in-memory catalog cache; dashboard uses `DashboardShell` stash              |
+| Back nav repopulates whole archive      | Episodes use in-memory catalog cache; dashboard uses `DashboardShell` stash                     |
 
 
 ---
+
+
 
 ## Navigation & live data (no full server refresh)
 
@@ -144,14 +164,16 @@ archive was intact — caused by transient Supabase pool errors returning empty 
 
 **Fix (shipped):**
 
-| Area | Approach | Key files |
-| --- | --- | --- |
-| Live metrics | Poll small JSON APIs only — never `router.refresh()` the page | `hooks/useLivePoll.ts`, `/api/dashboard/live`, `/api/usage` |
-| Dashboard | In-memory stash of last good payload; retry cockpit fetch once; reject empty live poll overwrites | `lib/dashboardCache.ts`, `components/dashboard/DashboardShell.tsx`, `DashboardLiveProvider.tsx` |
-| Episodes catalog | In-memory cache + scroll restore on back; URL filters (`?status=searchable`) | `lib/episodeCatalogCache.ts`, `components/episodes/EpisodeCatalogView.tsx` |
-| Browse pages | Removed `force-dynamic` / `revalidate = 0` from Episodes, Search, Archives, Sources | respective `app/(dashboard)/*/page.tsx` |
-| Router cache | `staleTimes` in Next config (60s dynamic) | `next.config.mjs` |
-| Auto-sync toggle | No longer calls `router.refresh()` after toggle | `components/dashboard/AutoSyncButton.tsx` |
+
+| Area             | Approach                                                                                          | Key files                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Live metrics     | Poll small JSON APIs only — never `router.refresh()` the page                                     | `hooks/useLivePoll.ts`, `/api/dashboard/live`, `/api/usage`                                     |
+| Dashboard        | In-memory stash of last good payload; retry cockpit fetch once; reject empty live poll overwrites | `lib/dashboardCache.ts`, `components/dashboard/DashboardShell.tsx`, `DashboardLiveProvider.tsx` |
+| Episodes catalog | In-memory cache + scroll restore on back; URL filters (`?status=searchable`)                      | `lib/episodeCatalogCache.ts`, `components/episodes/EpisodeCatalogView.tsx`                      |
+| Browse pages     | Removed `force-dynamic` / `revalidate = 0` from Episodes, Search, Archives, Sources               | respective `app/(dashboard)/*/page.tsx`                                                         |
+| Router cache     | `staleTimes` in Next config (60s dynamic)                                                         | `next.config.mjs`                                                                               |
+| Auto-sync toggle | No longer calls `router.refresh()` after toggle                                                   | `components/dashboard/AutoSyncButton.tsx`                                                       |
+
 
 **Removed:** `components/ui/AutoRefresh.tsx` (was calling `router.refresh()` every 15s).
 
@@ -165,6 +187,8 @@ queries on dashboard load).
 
 ---
 
+
+
 ## Handy local commands
 
 ```bash
@@ -177,6 +201,8 @@ npm run recover-queue -- --queue 5
 ```
 
 ---
+
+
 
 ## Next feature: The Clip Engine
 
@@ -194,12 +220,16 @@ workflow-ready**.
 
 ### Already in the app (Clip Engine v0)
 
-| Piece | Where | Gap |
-| --- | --- | --- |
-| Clip of the week | Dashboard | Auto-surface only; not saveable |
-| Copy citation / link / share | Search results, episode cards | Ephemeral — nothing saved |
-| Timestamp URLs | `buildTimestampUrl`, episode `?t=` | Works; clips don't persist |
-| Transcript segments | DB (`transcript_segments`) | Source material; no "saved clip" layer |
+
+| Piece                        | Where                              | Gap                                    |
+| ---------------------------- | ---------------------------------- | -------------------------------------- |
+| Clip of the week             | Dashboard                          | Auto-surface only; not saveable        |
+| Copy citation / link / share | Search results, episode cards      | Ephemeral — nothing saved              |
+| Timestamp URLs               | `buildTimestampUrl`, episode `?t=` | Works; clips don't persist             |
+| Transcript segments          | DB (`transcript_segments`)         | Source material; no "saved clip" layer |
+
+
+
 
 ### Clip Engine v1 — scope
 
@@ -210,6 +240,8 @@ workflow-ready**.
 3. **Collections** — optional folders: "Newsletter", "Shorts ideas", "Best quotes"
 4. **Clip card** — quote, episode, timestamp, thumbnail, one-click re-export
 5. **Dashboard widget** — "Recent clips" alongside clip of the week
+
+
 
 ### Data model (sketch)
 
@@ -229,13 +261,17 @@ No new worker jobs — clips reference existing indexed segments. MVP can skip a
 
 ### UI surfaces
 
-| Surface | Action |
-| --- | --- |
-| Search result card | **Save clip** next to Copy citation |
-| Episode transcript | Save any highlighted segment |
-| `/clips` | Grid/list of saved clips + collection filter |
-| Dashboard | Recent clips (last 5) + link to library |
-| Clip detail | Full quote, open episode, export formats |
+
+| Surface            | Action                                       |
+| ------------------ | -------------------------------------------- |
+| Search result card | **Save clip** next to Copy citation          |
+| Episode transcript | Save any highlighted segment                 |
+| `/clips`           | Grid/list of saved clips + collection filter |
+| Dashboard          | Recent clips (last 5) + link to library      |
+| Clip detail        | Full quote, open episode, export formats     |
+
+
+
 
 ### Export formats (v1)
 
@@ -244,6 +280,8 @@ No new worker jobs — clips reference existing indexed segments. MVP can skip a
 - **Social blurb** — quote + episode title + link (plain text)
 - **Newsletter block** — markdown quote block + attribution (v1.1)
 - **Subtitles (SRT/VTT)** — via Caption Engine for saved clip range
+
+
 
 ### Implementation order
 
@@ -254,6 +292,8 @@ No new worker jobs — clips reference existing indexed segments. MVP can skip a
 5. [ ] Dashboard "Recent clips" strip
 6. [ ] Wire clip of the week → "Save to library" CTA
 
+
+
 ### Out of scope for v1
 
 - AI-suggested clips / auto-chapter detection
@@ -261,12 +301,16 @@ No new worker jobs — clips reference existing indexed segments. MVP can skip a
 - Multi-user / team permissions
 - Public clip sharing pages
 
+
+
 ### Why this next
 
 Highest daily value for creators after search works: **search finds it, Clip Engine
 keeps it**. Closes the loop from archive → moment → reusable asset.
 
 ---
+
+
 
 ## Next feature: The Caption Engine
 
@@ -284,12 +328,16 @@ as SRT/VTT and previewable as on-screen captions** for any moment or full episod
 
 ### Already in the app (Caption Engine v0)
 
-| Piece | Where | Gap |
-| --- | --- | --- |
-| Timed segments | `transcript_segments` (start/end/text) | No subtitle export |
-| Transcript viewer | Episode detail | Read-only; no caption styling |
-| Whisper pipeline | Worker transcription step | Full-episode only; no clip-range helper |
-| `youtube_captions` source type | Schema constant | Not wired as ingest path |
+
+| Piece                          | Where                                  | Gap                                     |
+| ------------------------------ | -------------------------------------- | --------------------------------------- |
+| Timed segments                 | `transcript_segments` (start/end/text) | No subtitle export                      |
+| Transcript viewer              | Episode detail                         | Read-only; no caption styling           |
+| Whisper pipeline               | Worker transcription step              | Full-episode only; no clip-range helper |
+| `youtube_captions` source type | Schema constant                        | Not wired as ingest path                |
+
+
+
 
 ### Caption Engine v1 — scope
 
@@ -301,13 +349,17 @@ as SRT/VTT and previewable as on-screen captions** for any moment or full episod
 4. **Line editor** — split/merge segment lines, max chars per line, platform presets
 5. **Copy formats** — plain timed text, SRT snippet, or social caption block (text only)
 
+
+
 ### Platform presets (v1)
 
-| Preset | Max chars/line | Lines | Notes |
-| --- | --- | --- | --- |
-| YouTube Shorts | 32 | 2 | Center-bottom safe zone |
-| TikTok / Reels | 28 | 2 | Slightly tighter |
-| Full episode | 42 | 2 | Standard SRT for re-upload |
+
+| Preset         | Max chars/line | Lines | Notes                      |
+| -------------- | -------------- | ----- | -------------------------- |
+| YouTube Shorts | 32             | 2     | Center-bottom safe zone    |
+| TikTok / Reels | 28             | 2     | Slightly tighter           |
+| Full episode   | 42             | 2     | Standard SRT for re-upload |
+
 
 Presets are formatting rules only — no API calls.
 
@@ -331,13 +383,17 @@ required until you want saved edits.
 
 ### UI surfaces
 
-| Surface | Action |
-| --- | --- |
-| Episode detail | **Export captions** (SRT / VTT) for full episode |
-| Transcript viewer | Select segment range → preview + export |
-| Saved clip (Clip Engine) | **Download captions** for clip window |
-| Caption preview modal | Styled overlay on thumbnail/player frame |
-| `/clips` clip card | Caption export alongside share/citation |
+
+| Surface                  | Action                                           |
+| ------------------------ | ------------------------------------------------ |
+| Episode detail           | **Export captions** (SRT / VTT) for full episode |
+| Transcript viewer        | Select segment range → preview + export          |
+| Saved clip (Clip Engine) | **Download captions** for clip window            |
+| Caption preview modal    | Styled overlay on thumbnail/player frame         |
+| `/clips` clip card       | Caption export alongside share/citation          |
+
+
+
 
 ### Export formats (v1)
 
@@ -345,6 +401,8 @@ required until you want saved edits.
 - **WebVTT** — web player + some editors
 - **Plain timed text** — `00:01:23 quote here` for paste into editors
 - **Social caption block** — quote only, no timestamps (pairs with Clip Engine export)
+
+
 
 ### Implementation order
 
@@ -355,12 +413,16 @@ required until you want saved edits.
 5. [ ] Wire Clip Engine saved clips → caption download for clip range
 6. [ ] (v1.1) Simple line editor + optional `caption_overrides` persistence
 
+
+
 ### Out of scope for v1
 
 - Burned-in video export (ffmpeg caption render on worker)
 - Word-level karaoke timing (Whisper word timestamps)
 - Auto-translation / multi-language
 - YouTube auto-upload of caption tracks
+
+
 
 ### How Clip Engine + Caption Engine fit together
 
@@ -379,6 +441,8 @@ formatting and export UX.
 
 ---
 
+
+
 ## Other possible features (later)
 
 - Show notes / episode recap generator
@@ -387,6 +451,8 @@ formatting and export UX.
 - Semantic / "ask your archive" search (Phase 5)
 
 ---
+
+
 
 ## One-line status
 

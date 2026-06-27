@@ -14,25 +14,18 @@ import {
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const [
-    cockpit,
-    activeJobs,
-    featuredClip,
-    recentEpisodes,
-    recentSearches,
-    autoSync,
-    usage,
-  ] = await Promise.all([
-    getCockpitSummaryWithRetry(),
-    getActiveProcessingJobs(),
-    getFeaturedClip(),
-    getRecentEpisodes(6),
-    getRecentSearches(5),
-    getAutoSyncSummary(),
-    getUsageStats(),
-  ]);
-
+  const cockpit = await getCockpitSummaryWithRetry();
+  const activeJobs = await getActiveProcessingJobs();
   const liveSnapshot = buildLiveSnapshot(cockpit, activeJobs);
+
+  const [featuredClip, recentEpisodes, recentSearches, autoSync, usage] =
+    await Promise.all([
+      getFeaturedClip(),
+      getRecentEpisodes(6),
+      getRecentSearches(5),
+      getAutoSyncSummary(),
+      getUsageStats(),
+    ]);
 
   const isDemo = getDataMode() === "demo";
 

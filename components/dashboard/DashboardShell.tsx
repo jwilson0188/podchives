@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GlobalSearchBar } from "@/components/search/GlobalSearchBar";
 import { UsageCreditsCard } from "@/components/usage/UsageCreditsCard";
 import { AutoSyncButton } from "@/components/dashboard/AutoSyncButton";
@@ -29,30 +29,51 @@ export function DashboardShell({
   server: DashboardPayload;
   isDemo: boolean;
 }) {
-  const data = useMemo(() => mergeDashboardWithStash(server), [server]);
+  const [clientRefresh, setClientRefresh] = useState<DashboardPayload | null>(
+    null,
+  );
+
+  const base = clientRefresh ?? server;
+  const data = useMemo(() => mergeDashboardWithStash(base), [base]);
 
   useEffect(() => {
-    if (dashboardHasArchiveData(server.cockpit)) {
-      stashDashboard(server);
-    } else if (dashboardHasArchiveData(data.cockpit)) {
-      stashDashboard(data);
+    if (dashboardHasArchiveData(base.cockpit)) {
+      stashDashboard(base);
     }
-  }, [server, data]);
+  }, [base]);
 
-  const usedFallback =
-    !dashboardHasArchiveData(server.cockpit) &&
-    dashboardHasArchiveData(data.cockpit);
+  // SSR occasionally returns empty under pool pressure — one client fetch recovers.
+  useEffect(() => {
+    if (isDemo || dashboardHasArchiveData(server.cockpit)) return;
+
+    let cancelled = false;
+    fetch("/api/dashboard/cockpit", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (cancelled || !json?.cockpit) return;
+        if (!dashboardHasArchiveData(json.cockpit)) return;
+        const payload: DashboardPayload = {
+          cockpit: json.cockpit,
+          featuredClip: json.featuredClip ?? null,
+          recentEpisodes: json.recentEpisodes ?? [],
+          recentSearches: json.recentSearches ?? [],
+          autoSync: json.autoSync ?? { total: 0, enabled: 0 },
+          usage: json.usage,
+          liveSnapshot: json.liveSnapshot,
+        };
+        setClientRefresh(payload);
+        stashDashboard(payload);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [server.cockpit, isDemo]);
 
   return (
     <DashboardLiveProvider initial={data.liveSnapshot} enabled={!isDemo}>
       <div>
-        {usedFallback && (
-          <div className="mb-4 rounded-lg border border-warn/30 bg-warn-muted px-4 py-2 text-sm text-warn">
-            Archive stats couldn&apos;t refresh — showing your last loaded data.
-            Live processing still updates below.
-          </div>
-        )}
-
         <BrandHero
           cockpit={data.cockpit}
           actions={
