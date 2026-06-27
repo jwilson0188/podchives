@@ -1,15 +1,20 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { StatCard } from "@/components/ui/StatCard";
 import { GlobalSearchBar } from "@/components/search/GlobalSearchBar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { AutoRefresh } from "@/components/ui/AutoRefresh";
 import { UsageCreditsCard } from "@/components/usage/UsageCreditsCard";
 import { AutoSyncButton } from "@/components/dashboard/AutoSyncButton";
+import { BrandHero } from "@/components/dashboard/BrandHero";
+import { PipelineStrip } from "@/components/dashboard/PipelineStrip";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { SourceHealthPanel } from "@/components/dashboard/SourceHealthPanel";
+import { ArchiveTiles } from "@/components/dashboard/ArchiveTiles";
 import {
   getActiveProcessingJobs,
   getAutoSyncSummary,
-  getDashboardStats,
+  getCockpitSummary,
+  getDataMode,
   getRecentEpisodes,
   getRecentSearches,
   getUsageStats,
@@ -18,84 +23,70 @@ import { formatDate, formatDuration, formatRelativeDate } from "@/lib/utils";
 
 export const metadata = { title: "Dashboard" };
 
-// Always render fresh — DB-backed numbers must reflect the current queue.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function DashboardPage() {
-  const [stats, recentEpisodes, activeJobs, recentSearches, autoSync, usage] =
-    await Promise.all([
-      getDashboardStats(),
-      getRecentEpisodes(5),
-      getActiveProcessingJobs(),
-      getRecentSearches(4),
-      getAutoSyncSummary(),
-      getUsageStats(),
-    ]);
+  const [
+    cockpit,
+    recentEpisodes,
+    activeJobs,
+    recentSearches,
+    autoSync,
+    usage,
+  ] = await Promise.all([
+    getCockpitSummary(),
+    getRecentEpisodes(6),
+    getActiveProcessingJobs(),
+    getRecentSearches(5),
+    getAutoSyncSummary(),
+    getUsageStats(),
+  ]);
+
+  const isDemo = getDataMode() === "demo";
 
   return (
     <div>
-      <PageHeader
-        eyebrow="podchives // overview"
-        title="Dashboard"
-        description="Your archive at a glance — search, ingestion, transcription, indexing."
+      {isDemo ? null : <AutoRefresh intervalMs={15_000} />}
+
+      <BrandHero
+        cockpit={cockpit}
         actions={
           <AutoSyncButton total={autoSync.total} enabled={autoSync.enabled} />
         }
       />
 
-      <section className="card p-5 lg:p-7 mb-8 terminal-grid">
+      <ArchiveTiles archives={cockpit.archives} />
+
+      {/* Primary creator action — search is the product */}
+      <section className="card p-5 lg:p-6 mb-6 terminal-grid">
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.2em] text-accent font-medium">
-              Search the archive
+              Search your archive
             </div>
             <div className="text-text-muted text-sm mt-0.5">
-              Every transcript. Every moment. Cite back to the source.
+              Every quote, topic, and moment — cite back to the exact timestamp.
             </div>
           </div>
-          <Link href="/advanced-search" className="btn-ghost text-xs">
-            Advanced →
-          </Link>
         </div>
-        <GlobalSearchBar size="lg" autoFocus />
+        <GlobalSearchBar size="lg" autoFocus={false} />
       </section>
 
-      <section className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4 mb-8">
-        <StatCard
-          label="Archives"
-          value={stats.totalArchives}
-          hint="connected shows"
-        />
-        <StatCard
-          label="Episodes"
-          value={stats.totalEpisodes}
-          hint="total ingested"
-        />
-        <StatCard
-          label="Searchable"
-          value={stats.searchableEpisodes}
-          hint="indexed & ready"
-          accent="success"
-        />
-        <StatCard
-          label="Active jobs"
-          value={stats.activeJobs}
-          hint="processing now"
-          accent="cyan"
-        />
-        <StatCard
-          label="Failed"
-          value={stats.failedJobs}
-          hint="needs attention"
-          accent={stats.failedJobs > 0 ? "danger" : "default"}
-        />
-      </section>
+      <QuickActions />
 
-      <section className="grid lg:grid-cols-3 gap-4 lg:gap-6 mb-8">
+      <PipelineStrip cockpit={cockpit} />
+
+      {/* Live ops: what's running right now + spend */}
+      <section className="grid lg:grid-cols-3 gap-4 lg:gap-6 mb-6">
         <div className="lg:col-span-2 card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold tracking-tight">Active processing</h2>
+            <div>
+              <h2 className="font-semibold tracking-tight">Live processing</h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                What the worker is doing right now
+              </p>
+            </div>
             <Link
               href="/processing-queue"
               className="text-xs text-accent hover:text-accent-hover"
@@ -104,12 +95,30 @@ export default async function DashboardPage() {
             </Link>
           </div>
           {activeJobs.length === 0 ? (
-            <div className="text-sm text-text-muted py-6 text-center">
-              No active jobs. Worker is idle.
+            <div className="text-sm text-text-muted py-8 text-center border border-dashed border-border rounded-lg">
+              {cockpit.stats.queuedJobs > 0 ? (
+                <>
+                  Worker idle —{" "}
+                  <span className="text-warn font-medium">
+                    {cockpit.stats.queuedJobs} jobs
+                  </span>{" "}
+                  waiting in queue.
+                </>
+              ) : cockpit.backlogEpisodes > 0 ? (
+                <>
+                  Nothing running.{" "}
+                  <span className="text-warn font-medium">
+                    {cockpit.backlogEpisodes} episodes
+                  </span>{" "}
+                  still need processing — turn on auto-sync to drain the backlog.
+                </>
+              ) : (
+                "All caught up. Your archive is fully indexed."
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {activeJobs.map((j) => (
+              {activeJobs.slice(0, 5).map((j) => (
                 <div
                   key={j.id}
                   className="bg-bg-subtle rounded-lg border border-border p-3"
@@ -137,7 +146,6 @@ export default async function DashboardPage() {
                   />
                   <div className="mt-1.5 text-[11px] text-text-muted font-mono tabular-nums">
                     {j.progressPercent}%
-                    {j.workerId && <> · {j.workerId}</>}
                     {j.errorMessage && (
                       <span className="text-danger ml-2">
                         — {j.errorMessage}
@@ -146,6 +154,14 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               ))}
+              {activeJobs.length > 5 && (
+                <Link
+                  href="/processing-queue"
+                  className="block text-center text-xs text-text-muted hover:text-accent"
+                >
+                  +{activeJobs.length - 5} more active jobs
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -153,56 +169,18 @@ export default async function DashboardPage() {
         <UsageCreditsCard initial={usage} />
       </section>
 
-      <section className="grid lg:grid-cols-2 gap-4 lg:gap-6">
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold tracking-tight">Recent episodes</h2>
-            <Link
-              href="/episodes"
-              className="text-xs text-accent hover:text-accent-hover"
-            >
-              View all →
-            </Link>
-          </div>
-          <div className="divide-y divide-border">
-            {recentEpisodes.length === 0 && (
-              <div className="text-sm text-text-muted py-6 text-center">
-                No episodes yet. Add a YouTube source to start ingesting.
-              </div>
-            )}
-            {recentEpisodes.map((ep) => (
-              <Link
-                key={ep.id}
-                href={`/episodes/${ep.id}`}
-                className="flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-md hover:bg-bg-elevated transition-colors"
-              >
-                <div className="w-12 h-9 rounded bg-bg-elevated overflow-hidden flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={ep.thumbnailUrl}
-                    alt=""
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">
-                    {ep.episodeTitle}
-                  </div>
-                  <div className="text-[11px] text-text-muted">
-                    {formatDate(ep.publishDate)} ·{" "}
-                    {formatDuration(ep.durationSeconds)}
-                  </div>
-                </div>
-                <StatusBadge status={ep.processingStatus} />
-              </Link>
-            ))}
-          </div>
-        </div>
+      {/* Sources + research patterns */}
+      <section className="grid lg:grid-cols-2 gap-4 lg:gap-6 mb-6">
+        <SourceHealthPanel sources={cockpit.sources} />
 
-        <div className="card p-5">
+        <div className="card p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold tracking-tight">Recent searches</h2>
+            <div>
+              <h2 className="font-semibold tracking-tight">Recent searches</h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                What you&apos;ve been looking for
+              </p>
+            </div>
             <Link
               href="/search"
               className="text-xs text-accent hover:text-accent-hover"
@@ -210,10 +188,11 @@ export default async function DashboardPage() {
               New search →
             </Link>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1 flex-1">
             {recentSearches.length === 0 ? (
-              <div className="text-sm text-text-muted py-6 text-center">
-                No searches yet. Try one from the bar above.
+              <div className="text-sm text-text-muted py-8 text-center border border-dashed border-border rounded-lg">
+                Search your archive above — every query is saved here for quick
+                re-runs.
               </div>
             ) : (
               recentSearches.map((q) => (
@@ -224,7 +203,7 @@ export default async function DashboardPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium truncate text-text-primary group-hover:text-accent">
-                      "{q.queryText}"
+                      &ldquo;{q.queryText}&rdquo;
                     </div>
                     <div className="text-[11px] text-text-muted font-mono mt-0.5">
                       {q.filtersUsed} · {formatRelativeDate(q.createdAt)}
@@ -238,6 +217,70 @@ export default async function DashboardPage() {
             )}
           </div>
         </div>
+      </section>
+
+      {/* Latest content */}
+      <section className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-semibold tracking-tight">Latest episodes</h2>
+            <p className="text-xs text-text-muted mt-0.5">
+              Most recently ingested into your archive
+            </p>
+          </div>
+          <Link
+            href="/episodes"
+            className="text-xs text-accent hover:text-accent-hover"
+          >
+            View catalog →
+          </Link>
+        </div>
+        {recentEpisodes.length === 0 ? (
+          <div className="text-sm text-text-muted py-8 text-center border border-dashed border-border rounded-lg">
+            No episodes yet.{" "}
+            <Link href="/sources" className="text-accent hover:underline">
+              Connect a YouTube source
+            </Link>{" "}
+            to start building your searchable archive.
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {recentEpisodes.map((ep) => (
+              <Link
+                key={ep.id}
+                href={`/episodes/${ep.id}`}
+                className="group bg-bg-subtle rounded-lg border border-border overflow-hidden hover:border-border-strong transition-colors"
+              >
+                <div className="aspect-video bg-bg-elevated relative overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={ep.thumbnailUrl}
+                    alt=""
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute top-2 right-2">
+                    <StatusBadge status={ep.processingStatus} />
+                  </div>
+                  {ep.isSearchable && (
+                    <div className="absolute bottom-2 left-2 pill bg-success-muted text-success text-[10px] border border-success/30">
+                      searchable
+                    </div>
+                  )}
+                </div>
+                <div className="p-3">
+                  <div className="text-sm font-medium line-clamp-2 group-hover:text-accent transition-colors">
+                    {ep.episodeTitle}
+                  </div>
+                  <div className="text-[11px] text-text-muted mt-1">
+                    {formatDate(ep.publishDate)} ·{" "}
+                    {formatDuration(ep.durationSeconds)}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

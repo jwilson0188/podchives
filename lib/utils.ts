@@ -54,6 +54,14 @@ export function formatNumber(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+/** Compact hours display for creator dashboards (e.g. 142h, 42m). */
+export function formatHours(hours: number): string {
+  if (hours <= 0) return "0h";
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  if (hours < 100) return `${hours.toFixed(1)}h`;
+  return `${Math.round(hours).toLocaleString("en-US")}h`;
+}
+
 export function truncate(text: string, max = 280): string {
   if (text.length <= max) return text;
   return text.slice(0, max - 1).trimEnd() + "…";

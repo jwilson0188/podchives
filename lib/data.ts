@@ -59,6 +59,20 @@ export type DashboardStats = {
   activeJobs: number;
 };
 
+/** Creator-facing rollup for the dashboard cockpit. */
+export type CockpitSummary = {
+  archives: PodcastView[];
+  sources: SourceView[];
+  stats: DashboardStats;
+  totalHours: number;
+  searchableHours: number;
+  coveragePercent: number;
+  transcriptMoments: number;
+  transcribedEpisodes: number;
+  backlogEpisodes: number;
+  workerActive: boolean;
+};
+
 export type UsageStats = typeof demoUsage;
 
 export function useDemoData(): boolean {
@@ -120,6 +134,94 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       failedJobs: 0,
       activeJobs: 0,
     };
+  }
+}
+
+/** Aggregated creator metrics for the dashboard cockpit. */
+export async function getCockpitSummary(): Promise<CockpitSummary> {
+  const empty: CockpitSummary = {
+    archives: [],
+    sources: [],
+    stats: {
+      totalArchives: 0,
+      totalEpisodes: 0,
+      searchableEpisodes: 0,
+      queuedJobs: 0,
+      failedJobs: 0,
+      activeJobs: 0,
+    },
+    totalHours: 0,
+    searchableHours: 0,
+    coveragePercent: 0,
+    transcriptMoments: 0,
+    transcribedEpisodes: 0,
+    backlogEpisodes: 0,
+    workerActive: false,
+  };
+
+  if (useDemoData()) {
+    const totalSec = demoEpisodes.reduce((a, e) => a + e.durationSeconds, 0);
+    const searchSec = demoEpisodes
+      .filter((e) => e.isSearchable)
+      .reduce((a, e) => a + e.durationSeconds, 0);
+    const transcribed = demoEpisodes.filter((e) => e.isTranscribed).length;
+    const searchable = demoStats.searchableEpisodes;
+    return {
+      archives: demoPodcasts,
+      sources: demoSources,
+      stats: demoStats,
+      totalHours: totalSec / 3600,
+      searchableHours: searchSec / 3600,
+      coveragePercent:
+        demoStats.totalEpisodes > 0
+          ? Math.round((searchable / demoStats.totalEpisodes) * 100)
+          : 0,
+      transcriptMoments: demoTranscriptSegments.length,
+      transcribedEpisodes: transcribed,
+      backlogEpisodes: demoStats.totalEpisodes - searchable,
+      workerActive: demoStats.activeJobs > 0,
+    };
+  }
+
+  try {
+    const db = getDb();
+    const [archives, sources, stats, durations, searchableDur, transcribed, moments] =
+      await Promise.all([
+        getPodcasts(),
+        getSources(),
+        getDashboardStats(),
+        db.episode.aggregate({ _sum: { durationSeconds: true } }),
+        db.episode.aggregate({
+          where: { isSearchable: true },
+          _sum: { durationSeconds: true },
+        }),
+        db.episode.count({ where: { isTranscribed: true } }),
+        db.transcriptSegment.count(),
+      ]);
+
+    const totalEpisodes = stats.totalEpisodes;
+    const searchable = stats.searchableEpisodes;
+    const totalSec = durations._sum.durationSeconds ?? 0;
+    const searchSec = searchableDur._sum.durationSeconds ?? 0;
+
+    return {
+      archives,
+      sources,
+      stats,
+      totalHours: totalSec / 3600,
+      searchableHours: searchSec / 3600,
+      coveragePercent:
+        totalEpisodes > 0
+          ? Math.round((searchable / totalEpisodes) * 100)
+          : 0,
+      transcriptMoments: moments,
+      transcribedEpisodes: transcribed,
+      backlogEpisodes: totalEpisodes - searchable,
+      workerActive: stats.activeJobs > 0 || stats.queuedJobs > 0,
+    };
+  } catch (err) {
+    logError("getCockpitSummary", err);
+    return empty;
   }
 }
 
