@@ -34,7 +34,7 @@ WORKDIR /app
 FROM base AS build
 
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+RUN npm ci --include=dev --ignore-scripts
 
 COPY . .
 RUN npx prisma generate && npx tsc --noEmit
