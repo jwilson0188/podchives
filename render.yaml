@@ -50,3 +50,7 @@ services:
         sync: false # set in Render UI, do not commit
       - key: OPENAI_API_KEY
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TRANSCRIPTION_BACKEND
+        value: youtube_captions_then_groq

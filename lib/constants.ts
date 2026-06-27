@@ -9,15 +9,16 @@ export const PROCESSING_MODE = process.env.PROCESSING_MODE ?? "local";
 /**
  * Provider cost model + estimation heuristics for the Usage / Compute page.
  *
- * Rates are list prices for the default models (OpenAI Whisper API +
- * text-embedding-3-small). The byte/token figures are estimates — we don't
- * store exact token counts or file sizes, so they're derived from audio
- * duration and transcript text length. All numbers are clearly labeled as
- * estimates in the UI; actual billing is not connected.
+ * Transcription defaults to YouTube captions (free) with Groq Whisper fallback.
+ * Embeddings still use OpenAI text-embedding-3-small.
  */
 export const COST_MODEL = {
-  /** OpenAI Whisper API — billed per minute of audio. */
-  whisperUsdPerMinute: 0.006,
+  /** OpenAI Whisper API — legacy backend (TRANSCRIPTION_BACKEND=openai). */
+  openaiTranscriptionUsdPerMinute: 0.006,
+  /** Groq whisper-large-v3-turbo — $0.04/hr list price. */
+  groqTranscriptionUsdPerMinute: 0.04 / 60,
+  /** @deprecated use getTranscriptionCostPerMinute() */
+  whisperUsdPerMinute: 0.04 / 60,
   /** OpenAI text-embedding-3-small — billed per 1M tokens. */
   embeddingUsdPer1MTokens: 0.02,
   /** Rough chars→tokens ratio for English text (OpenAI guidance: ~4). */

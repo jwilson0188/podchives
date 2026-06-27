@@ -1,19 +1,26 @@
 /**
  * Transcription service.
  *
- * Default backend: OpenAI Whisper API (gpt-4o-transcribe / whisper-1).
- * For long audio, callers should chunk the file before invoking this.
+ * Default: try YouTube auto-captions (free), then Groq Whisper API
+ * (`whisper-large-v3-turbo`). Set TRANSCRIPTION_BACKEND=openai to keep the
+ * legacy OpenAI path.
  *
- * Output is normalized to { segments: [{ start, end, text }], fullText }
- * regardless of backend, so the segmenter and DB writer don't care.
+ * Output is normalized to { segments, fullText } regardless of backend.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import OpenAI from "openai";
+import {
+  getTranscriptionApiBackend,
+  getTranscriptionBackend,
+  getTranscriptionModel,
+  shouldTryYouTubeCaptions,
+} from "./transcriptionConfig";
+import { transcribeFromYouTubeCaptions } from "./youtubeCaptions";
 
-/** Stay under OpenAI Whisper's 25 MB upload limit. */
+/** Stay under hosted Whisper upload limits (Groq ~25 MB, OpenAI 25 MB). */
 const WHISPER_SAFE_BYTES = 24 * 1024 * 1024;
 
 export type TranscriptSegment = {
@@ -29,15 +36,45 @@ export type TranscriptionResult = {
   language: string | null;
 };
 
-let client: OpenAI | null = null;
-function getClient(): OpenAI {
+export type TranscriptionResolveResult = TranscriptionResult & {
+  transcriptSourceType:
+    | "whisper_local"
+    | "whisper_api"
+    | "youtube_captions"
+    | "manual";
+};
+
+let groqClient: OpenAI | null = null;
+let openaiClient: OpenAI | null = null;
+
+function getGroqClient(): OpenAI {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error(
+      "GROQ_API_KEY is not set. Get a key at https://console.groq.com or set TRANSCRIPTION_BACKEND=openai.",
+    );
+  }
+  if (!groqClient) {
+    groqClient = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: "https://api.groq.com/openai/v1",
+    });
+  }
+  return groqClient;
+}
+
+function getOpenAIClient(): OpenAI {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set.");
   }
-  if (!client) {
-    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
-  return client;
+  return openaiClient;
+}
+
+function getApiClient(): OpenAI {
+  const api = getTranscriptionApiBackend();
+  return api === "openai" ? getOpenAIClient() : getGroqClient();
 }
 
 type AudioChunk = { path: string; offsetSeconds: number; cleanup: boolean };
@@ -97,7 +134,6 @@ async function prepareAudioChunks(audioFilePath: string): Promise<AudioChunk[]> 
   );
   const pattern = path.join(tmpDir, "chunk_%03d.mp3");
 
-  // Re-encode chunks — mp3 `-c copy` segment splits are often undecodable.
   await runCommand("ffmpeg", [
     "-y",
     "-i",
@@ -147,10 +183,11 @@ function cleanupChunks(chunks: AudioChunk[]) {
 async function transcribeAudioChunk(
   audioFilePath: string,
 ): Promise<TranscriptionResult> {
-  const c = getClient();
+  const api = getTranscriptionApiBackend();
+  const c = getApiClient();
   const resp: any = await c.audio.transcriptions.create({
     file: fs.createReadStream(audioFilePath) as any,
-    model: "whisper-1",
+    model: getTranscriptionModel(api),
     response_format: "verbose_json",
     timestamp_granularities: ["segment"],
   });
@@ -173,14 +210,13 @@ async function transcribeAudioChunk(
 }
 
 /**
- * Transcribe an audio file via OpenAI Whisper API with verbose_json so we
- * receive timestamped segments out of the box. Files over 25 MB are split
- * with ffmpeg and merged back with corrected timestamps.
+ * Transcribe audio via Groq or OpenAI Whisper with verbose_json segments.
+ * Files over 25 MB are split with ffmpeg and merged with corrected timestamps.
  */
 export async function transcribeAudio(
   audioFilePath: string,
 ): Promise<TranscriptionResult> {
-  if (!fs.existsSync(audioFilePath)) {
+  if (!audioFilePath || !fs.existsSync(audioFilePath)) {
     throw new Error(`Audio file not found: ${audioFilePath}`);
   }
 
@@ -214,11 +250,45 @@ export async function transcribeAudio(
 }
 
 /**
+ * Preferred entry: free YouTube captions when available, else hosted Whisper.
+ */
+export async function resolveTranscription(args: {
+  episodeId: string;
+  audioFilePath: string;
+  sourceUrl: string;
+  sourcePlatform: string;
+}): Promise<TranscriptionResolveResult> {
+  const backend = getTranscriptionBackend();
+
+  if (shouldTryYouTubeCaptions(args.sourcePlatform, backend)) {
+    try {
+      const fromCaptions = await transcribeFromYouTubeCaptions(
+        args.sourceUrl,
+        args.episodeId,
+      );
+      return { ...fromCaptions, transcriptSourceType: "youtube_captions" };
+    } catch (err) {
+      if (process.env.NODE_ENV !== "test") {
+        console.warn(
+          `[transcription] YouTube captions unavailable for ${args.episodeId}, falling back to API:`,
+          (err as Error).message,
+        );
+      }
+    }
+  }
+
+  if (!args.audioFilePath) {
+    throw new Error(
+      "No audio file for API transcription — captions unavailable and download may have failed",
+    );
+  }
+
+  const fromApi = await transcribeAudio(args.audioFilePath);
+  return { ...fromApi, transcriptSourceType: "whisper_api" };
+}
+
+/**
  * Re-segment a transcription into ~30s chunks for embedding.
- * Whisper segments are already short (~5–15s); we pack adjacent ones to
- * give embeddings more context per row.
- *
- * TARGET_SECONDS controls the upper bound per segment.
  */
 const TARGET_SECONDS = 30;
 const HARD_MAX_SECONDS = 60;
@@ -261,12 +331,6 @@ export function segmentTranscript(
   return out;
 }
 
-/**
- * Persist transcript segments to the DB.
- *
- * NOTE: Embedding generation is a separate worker step. This function only
- * stores the text + timestamps. See /lib/embeddings.ts to fill the vectors.
- */
 export async function saveTranscriptSegments(args: {
   episodeId: string;
   podcastId: string;
@@ -278,7 +342,6 @@ export async function saveTranscriptSegments(args: {
     | "youtube_captions"
     | "manual";
   segments: TranscriptSegment[];
-  /** If true, delete any existing segments for this episode first. */
   replace?: boolean;
 }): Promise<number> {
   const { getDb } = await import("./db");
@@ -292,8 +355,6 @@ export async function saveTranscriptSegments(args: {
 
   if (args.segments.length === 0) return 0;
 
-  // Use createMany for speed; we'll skip the embedding column entirely here
-  // (it's nullable and pgvector-only).
   const result = await db.transcriptSegment.createMany({
     data: args.segments.map((s) => ({
       episodeId: args.episodeId,
@@ -310,11 +371,6 @@ export async function saveTranscriptSegments(args: {
   return result.count;
 }
 
-/**
- * Mark an episode as transcribed once segments are persisted. Kept as a
- * separate export so workers can call it independently of the rest of the
- * pipeline (e.g. when re-running just transcription on an existing episode).
- */
 export async function markEpisodeTranscribed(
   episodeId: string,
 ): Promise<void> {
@@ -329,28 +385,36 @@ export async function markEpisodeTranscribed(
   });
 }
 
-/** Convenience: download audio + transcribe in one call. */
+/** Convenience: transcribe + segment + persist in one call. */
 export async function transcribeEpisode(args: {
   episodeId: string;
   audioFilePath: string;
 }): Promise<{ segmentCount: number; language: string | null }> {
-  const result = await transcribeAudio(args.audioFilePath);
-  const packed = segmentTranscript(result);
-
   const { getDb } = await import("./db");
   const db = getDb();
   const ep = await db.episode.findUnique({ where: { id: args.episodeId } });
   if (!ep) throw new Error(`Episode ${args.episodeId} not found`);
+  if (!ep.audioFilePath && !ep.sourceUrl) {
+    throw new Error(`Episode ${args.episodeId} has no audio or source URL`);
+  }
+
+  const resolved = await resolveTranscription({
+    episodeId: args.episodeId,
+    audioFilePath: args.audioFilePath,
+    sourceUrl: ep.sourceUrl,
+    sourcePlatform: ep.sourcePlatform,
+  });
+  const packed = segmentTranscript(resolved);
 
   await saveTranscriptSegments({
     episodeId: args.episodeId,
     podcastId: ep.podcastId,
     sourceUrl: ep.sourceUrl,
     sourcePlatform: ep.sourcePlatform,
-    transcriptSourceType: "whisper_api",
+    transcriptSourceType: resolved.transcriptSourceType,
     segments: packed,
     replace: true,
   });
   await markEpisodeTranscribed(args.episodeId);
-  return { segmentCount: packed.length, language: result.language };
+  return { segmentCount: packed.length, language: resolved.language };
 }
