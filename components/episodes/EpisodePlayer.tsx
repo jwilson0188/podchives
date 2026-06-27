@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { VideoEmbed } from "@/components/ui/VideoEmbed";
 import { formatTimestamp } from "@/lib/utils";
 
 export type PlayerHandle = {
@@ -35,7 +36,7 @@ export const EpisodePlayer = forwardRef<
     onTimeUpdate?: (seconds: number) => void;
   }
 >(function EpisodePlayer(
-  { sourceUrl, title, initialSeconds = 0, thumbnailUrl, onTimeUpdate },
+  { sourceUrl, title, initialSeconds = 0, onTimeUpdate },
   ref,
 ) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -86,35 +87,37 @@ export const EpisodePlayer = forwardRef<
 
   if (!ytId) {
     return (
-      <div className="aspect-video w-full rounded-xl border border-border bg-bg-elevated flex items-center justify-center text-center text-text-muted p-6">
-        <div>
-          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-bg-card flex items-center justify-center">
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-            >
-              <polygon points="6,4 20,12 6,20" />
-            </svg>
-          </div>
-          <div className="text-sm font-medium text-text-primary mb-1">
-            {title}
-          </div>
-          <div className="text-xs">
-            No embeddable player for this source —{" "}
-            <a
-              href={sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-cyan hover:underline"
-            >
-              open original
-            </a>
+      <VideoEmbed className="bg-bg-elevated flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center text-center text-text-muted p-4 sm:p-6">
+          <div className="min-w-0 max-w-full">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-bg-card flex items-center justify-center">
+              <svg
+                className="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+              >
+                <polygon points="6,4 20,12 6,20" />
+              </svg>
+            </div>
+            <div className="text-sm font-medium text-text-primary mb-1 break-words">
+              {title}
+            </div>
+            <div className="text-xs break-words">
+              No embeddable player for this source —{" "}
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan hover:underline break-all"
+              >
+                open original
+              </a>
+            </div>
           </div>
         </div>
-      </div>
+      </VideoEmbed>
     );
   }
 
@@ -122,20 +125,19 @@ export const EpisodePlayer = forwardRef<
   const src = `https://www.youtube.com/embed/${ytId}?enablejsapi=1&start=${start}&rel=0&modestbranding=1`;
 
   return (
-    <div className="aspect-video w-full rounded-xl overflow-hidden border border-border bg-black relative">
+    <VideoEmbed>
       <iframe
         ref={iframeRef}
         src={src}
         title={title}
-        className="w-full h-full"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowFullScreen
       />
       {start > 0 && (
-        <div className="absolute top-2 left-2 pill bg-black/70 text-white border border-white/10 font-mono">
+        <div className="absolute top-2 left-2 z-10 pill bg-black/70 text-white border border-white/10 font-mono text-[10px] sm:text-[11px] max-w-[calc(100%-1rem)] truncate">
           starts at {formatTimestamp(start)}
         </div>
       )}
-    </div>
+    </VideoEmbed>
   );
 });

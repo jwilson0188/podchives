@@ -27,7 +27,7 @@ export default async function EpisodeDetailPage({
   if (!ep) notFound();
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-4">
         <Link
           href="/episodes"

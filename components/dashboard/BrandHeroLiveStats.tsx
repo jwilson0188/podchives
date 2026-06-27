@@ -88,7 +88,7 @@ export function HeroStatusRow() {
   const { stats, workerActive } = useDashboardLive();
 
   return (
-    <div className="flex flex-wrap items-center gap-2 mt-3">
+    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
       {workerActive || stats.activeJobs > 0 ? (
         <Link
           href="/processing-queue"
@@ -324,7 +324,7 @@ export function HeroActiveJobsStrip() {
           <Link
             key={job.id}
             href={`/episodes/${job.episodeId}`}
-            className="rounded-lg border border-border bg-bg-subtle/60 px-3 py-2.5 hover:border-border-strong transition-colors"
+            className="rounded-lg border border-border bg-bg-subtle/60 px-3 py-2.5 hover:border-border-strong transition-colors min-w-0 overflow-hidden"
           >
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="min-w-0">
