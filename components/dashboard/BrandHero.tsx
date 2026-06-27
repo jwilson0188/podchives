@@ -2,8 +2,10 @@ import type { BackfillEstimate, CockpitSummary } from "@/lib/data";
 import { BackfillCostHint } from "./BackfillCostHint";
 import {
   CoverageRingLive,
-  HeroMetricsLive,
-  WorkerStatusPill,
+  HeroActiveJobsStrip,
+  HeroPipelineBar,
+  HeroStatGrid,
+  HeroStatusRow,
 } from "./BrandHeroLiveStats";
 
 export function BrandHero({
@@ -30,16 +32,17 @@ export function BrandHero({
 
   return (
     <section className="card overflow-hidden mb-6 relative">
-      <div className="absolute inset-0 terminal-grid opacity-40 pointer-events-none" />
-      <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 terminal-grid opacity-30 pointer-events-none" />
+      <div className="absolute -top-24 -right-24 w-72 h-72 bg-accent/8 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-success/5 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative p-5 lg:p-7">
-        <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-          <div className="flex items-center gap-5 flex-shrink-0">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-5 lg:gap-7">
+          <div className="flex items-start gap-4 sm:gap-5">
             <CoverageRingLive />
 
             {cover && !multiBrand && (
-              <div className="hidden sm:block w-16 h-16 rounded-lg overflow-hidden border border-border flex-shrink-0">
+              <div className="hidden md:block w-14 h-14 rounded-lg overflow-hidden border border-border flex-shrink-0 mt-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cover}
@@ -48,34 +51,66 @@ export function BrandHero({
                 />
               </div>
             )}
+
+            <div className="flex-1 min-w-0 lg:hidden">
+              <HeroEyebrow multiBrand={multiBrand} />
+              <HeroTitle title={title} />
+              <HeroSubtitle text={subtitle} />
+              <HeroStatusRow />
+            </div>
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-accent font-medium mb-1">
-                  {multiBrand ? "podchives // library" : "podchives // your brand"}
-                </div>
-                <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-text-primary">
-                  {title}
-                </h1>
-                <p className="text-sm text-text-muted mt-1.5 max-w-xl line-clamp-2">
-                  {subtitle}
-                </p>
+          <div className="flex-1 min-w-0 hidden lg:block">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <HeroEyebrow multiBrand={multiBrand} />
+                <HeroTitle title={title} />
+                <HeroSubtitle text={subtitle} />
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end sm:justify-start">
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                 {showBackfillHint && (
                   <BackfillCostHint initial={backfillInitial} />
                 )}
-                <WorkerStatusPill />
                 {actions}
               </div>
             </div>
+            <HeroStatusRow />
+          </div>
 
-            <HeroMetricsLive />
+          <div className="flex items-center gap-2 flex-shrink-0 lg:hidden flex-wrap">
+            {showBackfillHint && (
+              <BackfillCostHint initial={backfillInitial} />
+            )}
+            {actions}
           </div>
         </div>
+
+        <HeroPipelineBar />
+        <HeroStatGrid />
+        <HeroActiveJobsStrip />
       </div>
     </section>
+  );
+}
+
+function HeroEyebrow({ multiBrand }: { multiBrand: boolean }) {
+  return (
+    <div className="text-[10px] uppercase tracking-[0.2em] text-accent font-medium mb-1">
+      {multiBrand ? "podchives // library" : "podchives // your brand"}
+    </div>
+  );
+}
+
+function HeroTitle({ title }: { title: string }) {
+  return (
+    <h1 className="text-2xl lg:text-[1.75rem] font-semibold tracking-tight text-text-primary leading-tight">
+      {title}
+    </h1>
+  );
+}
+
+function HeroSubtitle({ text }: { text: string }) {
+  return (
+    <p className="text-sm text-text-muted mt-1 max-w-xl line-clamp-2">{text}</p>
   );
 }

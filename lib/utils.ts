@@ -54,6 +54,16 @@ export function formatNumber(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+/** Compact counts for dense UI (e.g. 28,680 → 28.7k). */
+export function formatCompactNumber(n: number): string {
+  if (n < 1000) return n.toLocaleString("en-US");
+  if (n < 1_000_000) {
+    const k = n / 1000;
+    return `${k >= 10 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+}
+
 /** Compact hours display for creator dashboards (e.g. 142h, 42m). */
 export function formatHours(hours: number): string {
   if (hours <= 0) return "0h";
