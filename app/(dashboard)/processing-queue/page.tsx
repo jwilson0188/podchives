@@ -1,6 +1,10 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProcessingQueueTable } from "@/components/processing/ProcessingQueueTable";
+import { WorkerControls } from "@/components/processing/WorkerControls";
+import { IS_DEMO_MODE } from "@/lib/constants";
 import { getProcessingJobs } from "@/lib/data";
+import { hasDatabase } from "@/lib/db";
+import { getWorkerStatus } from "@/lib/workerControl";
 
 export const metadata = { title: "Processing Queue" };
 
@@ -8,7 +12,24 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function ProcessingQueuePage() {
-  const { active, queued, failed, completed } = await getProcessingJobs();
+  const [{ active, queued, failed, completed }, workerStatus] = await Promise.all([
+    getProcessingJobs(),
+    IS_DEMO_MODE || !hasDatabase()
+      ? Promise.resolve({
+          enabled: true,
+          queuedCount: 0,
+          activeCount: 0,
+          lastRunAt: null,
+          demo: true,
+        })
+      : getWorkerStatus(),
+  ]);
+
+  const concurrency = Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 1);
+  const workerLabel =
+    (process.env.PROCESSING_MODE ?? "local") === "render-worker"
+      ? "podchives-worker"
+      : "worker-local";
 
   return (
     <div>
@@ -16,20 +37,25 @@ export default async function ProcessingQueuePage() {
         eyebrow="ops // queue"
         title="Processing Queue"
         description="Live worker state — what's running, what's waiting, what failed, and what just shipped."
-        actions={
-          <>
-            <button className="btn-secondary text-sm">Pause worker</button>
-            <button className="btn-primary text-sm">Run next job</button>
-          </>
-        }
+        actions={<WorkerControls initialStatus={workerStatus} />}
       />
 
       <section className="grid lg:grid-cols-3 gap-3 mb-8">
         <WorkerCard
           title="Worker"
-          value="worker-local-01"
-          status="online"
-          hint="local · concurrency 1"
+          value={workerLabel}
+          status={workerStatus.enabled ? "online" : "paused"}
+          hint={`${workerStatus.enabled ? "processing" : "paused"} · concurrency ${concurrency}`}
+        />
+        <WorkerCard
+          title="Queue depth"
+          value={`${workerStatus.queuedCount} queued · ${workerStatus.activeCount} active`}
+          status={workerStatus.queuedCount > 0 ? "scheduled" : "ok"}
+          hint={
+            workerStatus.lastRunAt
+              ? `last run ${new Date(workerStatus.lastRunAt).toLocaleString()}`
+              : "no runs recorded yet"
+          }
         />
         <WorkerCard
           title="Overnight processing"
@@ -40,12 +66,6 @@ export default async function ProcessingQueuePage() {
               : "off"
           }
           hint="max 3 jobs/run · retries: on"
-        />
-        <WorkerCard
-          title="Compute budget"
-          value="56 / 200 min"
-          status="ok"
-          hint="resets monthly"
         />
       </section>
 
@@ -86,6 +106,7 @@ function WorkerCard({
 }) {
   const statusTone: Record<string, string> = {
     online: "bg-success-muted text-success",
+    paused: "bg-bg-elevated text-text-muted border border-border",
     scheduled: "bg-cyan-muted text-cyan",
     off: "bg-bg-elevated text-text-muted border border-border",
     ok: "bg-success-muted text-success",

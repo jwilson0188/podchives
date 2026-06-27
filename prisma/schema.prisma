@@ -214,6 +214,7 @@ model WorkerRun {
 model SchedulerSettings {
   id                String   @id @default(cuid())
   overnightEnabled  Boolean  @default(false) @map("overnight_enabled")
+  workerEnabled     Boolean  @default(true) @map("worker_enabled")
   startTime         String   @default("02:00") @map("start_time")
   maxJobsPerRun     Int      @default(3) @map("max_jobs_per_run")
   retryFailedJobs   Boolean  @default(true) @map("retry_failed_jobs")
