@@ -17,7 +17,7 @@
 import { COST_MODEL, IS_DEMO_MODE } from "./constants";
 import { getTranscriptionCostPerMinute, getTranscriptionBackend } from "./transcriptionConfig";
 import { hasDatabase, getDb } from "./db";
-import { resolveThumbnailUrl } from "./utils";
+import { resolveArchiveCoverUrl, resolveThumbnailUrl } from "./utils";
 import {
   demoDownloads,
   demoEpisodes,
@@ -436,7 +436,12 @@ export async function getPodcasts(): Promise<PodcastView[]> {
       include: {
         _count: { select: { episodes: true } },
         episodes: {
-          select: { isSearchable: true },
+          select: {
+            isSearchable: true,
+            thumbnailOriginalUrl: true,
+            externalId: true,
+            publishDate: true,
+          },
         },
       },
     });
@@ -451,12 +456,21 @@ export async function getPodcasts(): Promise<PodcastView[]> {
     );
     return rows.map((p, i): PodcastView => {
       const searchable = p.episodes.filter((e) => e.isSearchable).length;
+      const latestEpisode = [...p.episodes]
+        .sort(
+          (a, b) =>
+            (b.publishDate?.getTime() ?? 0) - (a.publishDate?.getTime() ?? 0),
+        )
+        .find((e) => e.thumbnailOriginalUrl || e.externalId);
       return {
         id: p.id,
         name: p.name,
         slug: p.slug,
         description: p.description ?? "",
-        coverImageUrl: p.coverImageUrl ?? "",
+        coverImageUrl: resolveArchiveCoverUrl({
+          coverImageUrl: p.coverImageUrl,
+          latestEpisode,
+        }),
         officialUrl: p.officialUrl ?? "",
         episodeCount: p._count.episodes,
         searchableCount: searchable,

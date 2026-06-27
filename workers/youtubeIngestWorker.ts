@@ -12,6 +12,8 @@ import {
   syncYouTubeSource,
   extractYouTubeMetadata,
   detectYouTubeSourceType,
+  fetchYouTubeChannelProfile,
+  type YouTubeChannel,
 } from "@/lib/youtube";
 import {
   markJobCompleted,
@@ -20,6 +22,29 @@ import {
   queueEpisodeProcessingIfNeeded,
   updateJobProgress,
 } from "@/lib/queue";
+
+async function updatePodcastBranding(
+  podcastId: string,
+  channel: Pick<
+    YouTubeChannel,
+    "channelName" | "thumbnailUrl" | "description" | "channelUrl"
+  >,
+) {
+  const { getDb } = await import("@/lib/db");
+  const db = getDb();
+  const data: {
+    name?: string;
+    coverImageUrl?: string;
+    description?: string;
+    officialUrl?: string;
+  } = {};
+  if (channel.thumbnailUrl) data.coverImageUrl = channel.thumbnailUrl;
+  if (channel.channelName) data.name = channel.channelName;
+  if (channel.description) data.description = channel.description;
+  if (channel.channelUrl) data.officialUrl = channel.channelUrl;
+  if (Object.keys(data).length === 0) return;
+  await db.podcast.update({ where: { id: podcastId }, data });
+}
 
 export async function runSourceSyncJob(jobId: string, sourceId: string) {
   const { getDb } = await import("@/lib/db");
@@ -46,13 +71,32 @@ export async function runSourceSyncJob(jobId: string, sourceId: string) {
   try {
     const detected = detectYouTubeSourceType(source.sourceUrl);
     let videos = [] as Awaited<ReturnType<typeof syncYouTubeSource>>["videos"];
+    let channelMeta: Pick<
+      YouTubeChannel,
+      "channelName" | "thumbnailUrl" | "description" | "channelUrl"
+    > | null = null;
 
     if (detected === "youtube_video") {
       const v = await extractYouTubeMetadata(source.sourceUrl);
       videos = [v];
+      const channelUrl = v.channelId
+        ? `https://www.youtube.com/channel/${v.channelId}`
+        : source.sourceUrl;
+      try {
+        channelMeta = await fetchYouTubeChannelProfile(channelUrl);
+      } catch (err: any) {
+        console.warn(
+          `[source_sync] channel profile fetch failed for ${channelUrl}: ${err?.message ?? err}`,
+        );
+      }
     } else {
       const ch = await syncYouTubeSource(source.sourceUrl);
       videos = ch.videos;
+      channelMeta = ch;
+    }
+
+    if (channelMeta) {
+      await updatePodcastBranding(source.podcastId, channelMeta);
     }
 
     let added = 0;
