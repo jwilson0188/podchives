@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { SourceCard } from "@/components/sources/SourceCard";
+import { SourcesList } from "@/components/sources/SourcesList";
 import { DownloadManagerTable } from "@/components/processing/DownloadManagerTable";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getDownloads, getEpisodes, getSources } from "@/lib/data";
+import { getDownloads, getEpisodes, getSourcesWithRetry } from "@/lib/data";
 import { formatRelativeDate } from "@/lib/utils";
 
 export const metadata = { title: "Download Manager" };
@@ -15,7 +15,7 @@ export default async function DownloadManagerPage() {
   const [downloads, episodes, sources] = await Promise.all([
     getDownloads(),
     getEpisodes({ limit: 500 }),
-    getSources(),
+    getSourcesWithRetry(),
   ]);
   const lastSync = sources
     .map((s) => s.lastSyncedAt)
@@ -40,18 +40,13 @@ export default async function DownloadManagerPage() {
             {sources.length} source{sources.length === 1 ? "" : "s"}
           </span>
         </div>
-        {sources.length === 0 ? (
-          <EmptyState
-            title="No sources connected"
-            description="Add a YouTube source on the Sources page to start ingesting."
+        <div className="grid lg:grid-cols-2 gap-3">
+          <SourcesList
+            initial={sources}
+            showStopSync
+            emptyDescription="Add a YouTube source on the Sources page to start ingesting."
           />
-        ) : (
-          <div className="grid lg:grid-cols-2 gap-3">
-            {sources.map((s) => (
-              <SourceCard key={s.id} source={s} showStopSync />
-            ))}
-          </div>
-        )}
+        </div>
       </section>
 
       <section className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3">

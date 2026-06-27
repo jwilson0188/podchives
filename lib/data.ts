@@ -217,9 +217,9 @@ export async function getCockpitSummary(): Promise<CockpitSummary> {
       db.transcriptSegment.count(),
     ]);
 
-    const archives =
+    let archives =
       settled[0].status === "fulfilled" ? settled[0].value : [];
-    const sources =
+    let sources =
       settled[1].status === "fulfilled" ? settled[1].value : [];
     const stats =
       settled[2].status === "fulfilled"
@@ -257,6 +257,28 @@ export async function getCockpitSummary(): Promise<CockpitSummary> {
       return empty;
     }
 
+    // Stats can succeed while list queries fail under pool pressure — backfill.
+    if (totalEpisodes > 0 && sources.length === 0) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const retried = await getSources();
+        if (retried.length > 0) {
+          sources = retried;
+          break;
+        }
+        await sleep(250 * (attempt + 1));
+      }
+    }
+    if (totalEpisodes > 0 && archives.length === 0) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const retried = await getPodcasts();
+        if (retried.length > 0) {
+          archives = retried;
+          break;
+        }
+        await sleep(250 * (attempt + 1));
+      }
+    }
+
     return {
       archives,
       sources,
@@ -282,11 +304,22 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Episodes without a source list usually means getSources failed, not an empty library. */
+export function cockpitSourcesMissing(cockpit: CockpitSummary): boolean {
+  return cockpit.stats.totalEpisodes > 0 && cockpit.sources.length === 0;
+}
+
+function cockpitIsComplete(cockpit: CockpitSummary): boolean {
+  if (!dashboardHasArchiveData(cockpit)) return false;
+  if (cockpitSourcesMissing(cockpit)) return false;
+  return true;
+}
+
 /** One retry helps survive transient Supabase pool blips on Vercel. */
 export async function getCockpitSummaryWithRetry(): Promise<CockpitSummary> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const result = await getCockpitSummary();
-    if (dashboardHasArchiveData(result)) return result;
+    if (cockpitIsComplete(result)) return result;
     if (attempt < 2) await sleep(300 * (attempt + 1));
   }
   return getCockpitSummary();
@@ -473,6 +506,16 @@ export async function getSources(): Promise<SourceView[]> {
     logError("getSources", err);
     return [];
   }
+}
+
+/** Retry when the first query returns empty under transient pool errors. */
+export async function getSourcesWithRetry(): Promise<SourceView[]> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await getSources();
+    if (result.length > 0) return result;
+    if (attempt < 2) await sleep(300 * (attempt + 1));
+  }
+  return getSources();
 }
 
 // ─── Episodes ─────────────────────────────────────────────────────────────

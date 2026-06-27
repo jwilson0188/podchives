@@ -15,6 +15,7 @@ import { ArchiveTiles } from "@/components/dashboard/ArchiveTiles";
 import { ClipOfTheWeek } from "@/components/dashboard/ClipOfTheWeek";
 import { EpisodeGridCard } from "@/components/dashboard/EpisodeGridCard";
 import {
+  cockpitSourcesMissing,
   dashboardHasArchiveData,
   mergeDashboardWithStash,
   stashDashboard,
@@ -37,21 +38,36 @@ export function DashboardShell({
   const data = useMemo(() => mergeDashboardWithStash(base), [base]);
 
   useEffect(() => {
-    if (dashboardHasArchiveData(base.cockpit)) {
-      stashDashboard(base);
+    if (
+      !dashboardHasArchiveData(base.cockpit) ||
+      cockpitSourcesMissing(base.cockpit)
+    ) {
+      return;
     }
+    stashDashboard(base);
   }, [base]);
 
-  // SSR occasionally returns empty under pool pressure — one client fetch recovers.
+  // SSR occasionally returns empty or drops sources under pool pressure — client fetch recovers.
   useEffect(() => {
-    if (isDemo || dashboardHasArchiveData(server.cockpit)) return;
+    if (
+      isDemo ||
+      (dashboardHasArchiveData(server.cockpit) &&
+        !cockpitSourcesMissing(server.cockpit))
+    ) {
+      return;
+    }
 
     let cancelled = false;
     fetch("/api/dashboard/cockpit", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (cancelled || !json?.cockpit) return;
-        if (!dashboardHasArchiveData(json.cockpit)) return;
+        if (
+          !dashboardHasArchiveData(json.cockpit) ||
+          cockpitSourcesMissing(json.cockpit)
+        ) {
+          return;
+        }
         const payload: DashboardPayload = {
           cockpit: json.cockpit,
           featuredClip: json.featuredClip ?? null,

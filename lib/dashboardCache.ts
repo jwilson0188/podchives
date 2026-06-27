@@ -57,10 +57,35 @@ export function getStashedDashboard(): DashboardPayload | null {
  * Prefer server data when healthy; fall back to last good in-memory stash when
  * a navigation re-fetch returns empty (transient DB / pool errors).
  */
+export function cockpitSourcesMissing(cockpit: CockpitSummary): boolean {
+  return cockpit.stats.totalEpisodes > 0 && cockpit.sources.length === 0;
+}
+
 export function mergeDashboardWithStash(
   server: DashboardPayload,
 ): DashboardPayload {
+  const stashRef = stash ?? readSessionStash();
+
   if (dashboardHasArchiveData(server.cockpit)) {
+    if (
+      stashRef &&
+      cockpitSourcesMissing(server.cockpit) &&
+      stashRef.cockpit.sources.length > 0
+    ) {
+      return {
+        ...server,
+        cockpit: {
+          ...server.cockpit,
+          sources: stashRef.cockpit.sources,
+          archives:
+            server.cockpit.archives.length > 0
+              ? server.cockpit.archives
+              : stashRef.cockpit.archives,
+        },
+        autoSync:
+          server.autoSync.total > 0 ? server.autoSync : stashRef.autoSync,
+      };
+    }
     return server;
   }
 

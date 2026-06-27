@@ -17,12 +17,8 @@ export async function GET() {
   if (IS_DEMO_MODE || !hasDatabase()) {
     return NextResponse.json({ sources: demoSources, demo: true });
   }
-  const { getDb } = await import("@/lib/db");
-  const db = getDb();
-  const sources = await db.source.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { podcast: true },
-  });
+  const { getSourcesWithRetry } = await import("@/lib/data");
+  const sources = await getSourcesWithRetry();
   return NextResponse.json({ sources, demo: false });
 }
 

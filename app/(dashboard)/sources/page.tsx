@@ -1,14 +1,13 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ScrollToHash } from "@/components/ui/ScrollToHash";
-import { SourceCard } from "@/components/sources/SourceCard";
+import { SourcesList } from "@/components/sources/SourcesList";
 import { AddSourceForm } from "@/components/sources/AddSourceForm";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { getSources } from "@/lib/data";
+import { getSourcesWithRetry } from "@/lib/data";
 
 export const metadata = { title: "Sources" };
 
 export default async function SourcesPage() {
-  const sources = await getSources();
+  const sources = await getSourcesWithRetry();
   return (
     <div>
       <ScrollToHash id="add-source" />
@@ -29,14 +28,7 @@ export default async function SourcesPage() {
             Connected ({sources.length})
           </h2>
           <div className="space-y-3 mb-8">
-            {sources.length === 0 ? (
-              <EmptyState
-                title="No sources connected"
-                description="Paste a YouTube channel, playlist, or video URL above to start your first archive."
-              />
-            ) : (
-              sources.map((s) => <SourceCard key={s.id} source={s} />)
-            )}
+            <SourcesList initial={sources} />
           </div>
 
           <h2 className="text-sm font-semibold tracking-tight mb-3 text-text-muted uppercase tracking-widest text-[11px]">
