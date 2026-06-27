@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function ProcessingQueuePage() {
-  const [{ active, queued, failed, completed }, workerStatus] = await Promise.all([
+  const [{ active, queued, failed, completed, totals }, workerStatus] =
+    await Promise.all([
     getProcessingJobs(),
     IS_DEMO_MODE || !hasDatabase()
       ? Promise.resolve({
@@ -49,12 +50,14 @@ export default async function ProcessingQueuePage() {
         />
         <WorkerCard
           title="Queue depth"
-          value={`${workerStatus.queuedCount} queued · ${workerStatus.activeCount} active`}
-          status={workerStatus.queuedCount > 0 ? "scheduled" : "ok"}
+          value={`${totals.queued.toLocaleString()} queued · ${totals.active.toLocaleString()} active`}
+          status={totals.queued > 0 || totals.active > 0 ? "scheduled" : "ok"}
           hint={
-            workerStatus.lastRunAt
-              ? `last run ${new Date(workerStatus.lastRunAt).toLocaleString()}`
-              : "no runs recorded yet"
+            totals.failed > 0
+              ? `${totals.failed.toLocaleString()} failed total · showing latest 25 below`
+              : workerStatus.lastRunAt
+                ? `last run ${new Date(workerStatus.lastRunAt).toLocaleString()}`
+                : "no runs recorded yet"
           }
         />
         <WorkerCard
@@ -72,7 +75,7 @@ export default async function ProcessingQueuePage() {
       <ProcessingQueueTable
         title="Active"
         jobs={active}
-        emptyTitle="Worker is idle. No active jobs."
+        emptyTitle="No jobs running right now."
       />
       <ProcessingQueueTable
         title="Failed"
@@ -82,7 +85,11 @@ export default async function ProcessingQueuePage() {
       <ProcessingQueueTable
         title="Queued"
         jobs={queued}
-        emptyTitle="Nothing queued."
+        emptyTitle={
+          totals.queued > 50
+            ? `Nothing in the first 50 — ${totals.queued.toLocaleString()} total queued.`
+            : "Nothing queued."
+        }
       />
       <ProcessingQueueTable
         title="Recently completed"

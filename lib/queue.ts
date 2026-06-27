@@ -72,6 +72,94 @@ const ACTIVE_STATUSES = [
   "indexing",
 ];
 
+/** In-flight worker states (not queued / terminal). */
+export const INFLIGHT_STATUSES = [
+  "running",
+  "downloading",
+  "transcribing",
+  "segmenting",
+  "embedding",
+  "indexing",
+  "extracting_audio",
+] as const;
+
+export function getQueueLimits() {
+  return {
+    maxQueuedEpisodesPerSource: Math.max(
+      1,
+      Number(process.env.MAX_QUEUED_EPISODES_PER_SOURCE) || 25,
+    ),
+    maxInflightEpisodesPerSource: Math.max(
+      1,
+      Number(process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE) || 8,
+    ),
+    maxEpisodesQueuedPerSync: Math.max(
+      1,
+      Number(process.env.MAX_EPISODES_QUEUED_PER_SYNC) || 20,
+    ),
+  };
+}
+
+async function countSourcePipelinePressure(sourceId: string): Promise<{
+  queuedPipelines: number;
+  inflight: number;
+}> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+  const episodeScope = { episode: { sourceId } };
+  const [queuedPipelines, inflight] = await Promise.all([
+    db.processingJob.count({
+      where: {
+        ...episodeScope,
+        status: "queued",
+        jobType: "download",
+      },
+    }),
+    db.processingJob.count({
+      where: {
+        ...episodeScope,
+        status: { in: [...INFLIGHT_STATUSES] },
+      },
+    }),
+  ]);
+  return { queuedPipelines, inflight };
+}
+
+export async function canQueueEpisodeForSource(
+  sourceId: string,
+): Promise<boolean> {
+  const limits = getQueueLimits();
+  const { queuedPipelines, inflight } =
+    await countSourcePipelinePressure(sourceId);
+  return (
+    queuedPipelines < limits.maxQueuedEpisodesPerSource &&
+    inflight < limits.maxInflightEpisodesPerSource
+  );
+}
+
+/**
+ * Re-queue jobs stuck in a processing state (worker crash / deploy mid-job).
+ */
+export async function reclaimStaleJobs(
+  staleMinutes = 45,
+): Promise<number> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+  const cutoff = new Date(Date.now() - staleMinutes * 60_000);
+  const result = await db.processingJob.updateMany({
+    where: {
+      status: { in: [...INFLIGHT_STATUSES] },
+      updatedAt: { lt: cutoff },
+    },
+    data: {
+      status: "queued",
+      workerId: null,
+      errorMessage: "Requeued after stale timeout",
+    },
+  });
+  return result.count;
+}
+
 /**
  * Idempotently enqueue the download→index pipeline for an episode.
  * Skips episodes that already have audio, are searchable, or already have an
@@ -86,10 +174,17 @@ export async function queueEpisodeProcessingIfNeeded(
 
   const ep = await db.episode.findUnique({
     where: { id: episodeId },
-    select: { id: true, audioFilePath: true, isSearchable: true },
+    select: {
+      id: true,
+      sourceId: true,
+      audioFilePath: true,
+      isSearchable: true,
+    },
   });
   if (!ep) return false;
   if (ep.audioFilePath || ep.isSearchable) return false;
+
+  if (!(await canQueueEpisodeForSource(ep.sourceId))) return false;
 
   const active = await db.processingJob.findFirst({
     where: {

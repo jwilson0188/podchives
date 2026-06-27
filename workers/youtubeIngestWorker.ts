@@ -16,6 +16,7 @@ import {
 import {
   markJobCompleted,
   markJobFailed,
+  getQueueLimits,
   queueEpisodeProcessingIfNeeded,
   updateJobProgress,
 } from "@/lib/queue";
@@ -55,6 +56,9 @@ export async function runSourceSyncJob(jobId: string, sourceId: string) {
     }
 
     let added = 0;
+    let deferred = 0;
+    const { maxEpisodesQueuedPerSync } = getQueueLimits();
+
     for (let i = 0; i < videos.length; i++) {
       const v = videos[i];
       const meta = buildEpisodeMetadata(v);
@@ -74,15 +78,23 @@ export async function runSourceSyncJob(jobId: string, sourceId: string) {
         },
       });
 
-      // Enqueue the pipeline for any episode that still needs audio. This is
-      // idempotent (skips episodes already processed or in-flight), so each
-      // re-sync drains backlog stragglers and picks up newly-published videos.
-      const queued = await queueEpisodeProcessingIfNeeded(ep.id);
-      if (queued) added++;
+      if (added >= maxEpisodesQueuedPerSync) {
+        deferred++;
+      } else {
+        const queued = await queueEpisodeProcessingIfNeeded(ep.id);
+        if (queued) added++;
+        else if (!ep.audioFilePath && !ep.isSearchable) deferred++;
+      }
 
       await updateJobProgress(
         jobId,
         Math.round(((i + 1) / videos.length) * 100),
+      );
+    }
+
+    if (deferred > 0) {
+      console.log(
+        `[source_sync] ${source.sourceName}: queued ${added} episode pipeline(s), deferred ${deferred} (backpressure — will drain on next sync)`,
       );
     }
 
@@ -94,9 +106,22 @@ export async function runSourceSyncJob(jobId: string, sourceId: string) {
       },
     });
 
+    await db.sourceSyncJob.updateMany({
+      where: { sourceId, status: "running" },
+      data: { status: "completed", completedAt: new Date() },
+    });
+
     await markJobCompleted(jobId);
-    return { episodesFound: videos.length, episodesAdded: added };
+    return { episodesFound: videos.length, episodesQueued: added, deferred };
   } catch (err: any) {
+    await db.sourceSyncJob.updateMany({
+      where: { sourceId, status: "running" },
+      data: {
+        status: "failed",
+        completedAt: new Date(),
+        errorMessage: err?.message ?? "Unknown error",
+      },
+    });
     await db.source.update({
       where: { id: sourceId },
       data: { syncStatus: "error" },

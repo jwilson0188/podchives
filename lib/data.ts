@@ -731,66 +731,179 @@ export type ProcessingJobBucket = {
   queued: ProcessingJobView[];
   failed: ProcessingJobView[];
   completed: ProcessingJobView[];
+  totals: {
+    active: number;
+    queued: number;
+    failed: number;
+  };
 };
 
-export async function getProcessingJobs(): Promise<ProcessingJobBucket> {
-  const all = await getAllProcessingJobs();
+const PROCESSING_JOB_INCLUDE = {
+  episode: {
+    select: { episodeTitle: true, podcast: { select: { name: true } } },
+  },
+} as const;
+
+const ACTIVE_JOB_STATUSES = [
+  "running",
+  "downloading",
+  "transcribing",
+  "segmenting",
+  "embedding",
+  "indexing",
+  "extracting_audio",
+] as const;
+
+function mapProcessingJobRow(j: {
+  id: string;
+  episodeId: string | null;
+  sourceId: string | null;
+  jobType: string;
+  status: string;
+  progressPercent: number;
+  workerId: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  retryCount: number;
+  errorMessage: string | null;
+  createdAt: Date;
+  episode: {
+    episodeTitle: string;
+    podcast: { name: string } | null;
+  } | null;
+}): ProcessingJobView {
   return {
-    active: all.filter(
-      (j) =>
-        j.status !== "queued" &&
-        j.status !== "completed" &&
-        j.status !== "failed",
-    ),
-    queued: all.filter((j) => j.status === "queued"),
-    failed: all.filter((j) => j.status === "failed"),
-    completed: all.filter((j) => j.status === "completed").slice(0, 25),
+    id: j.id,
+    episodeId: j.episodeId ?? "",
+    episodeTitle:
+      j.episode?.episodeTitle ??
+      (j.sourceId ? `Source sync (${j.sourceId.slice(0, 6)})` : "—"),
+    podcastName: j.episode?.podcast?.name ?? "—",
+    jobType: j.jobType as ProcessingJobView["jobType"],
+    status: j.status as ProcessingJobView["status"],
+    progressPercent: j.progressPercent,
+    workerId: j.workerId,
+    startedAt: j.startedAt?.toISOString() ?? null,
+    completedAt: j.completedAt?.toISOString() ?? null,
+    retryCount: j.retryCount,
+    errorMessage: j.errorMessage,
+    createdAt: j.createdAt.toISOString(),
   };
 }
 
-export async function getAllProcessingJobs(): Promise<ProcessingJobView[]> {
-  if (useDemoData()) return demoProcessingJobs;
+export async function getProcessingJobs(): Promise<ProcessingJobBucket> {
+  if (useDemoData()) {
+    const all = demoProcessingJobs;
+    return {
+      active: all.filter(
+        (j) =>
+          j.status !== "queued" &&
+          j.status !== "completed" &&
+          j.status !== "failed",
+      ),
+      queued: all.filter((j) => j.status === "queued"),
+      failed: all.filter((j) => j.status === "failed"),
+      completed: all.filter((j) => j.status === "completed").slice(0, 25),
+      totals: {
+        active: all.filter(
+          (j) =>
+            j.status !== "queued" &&
+            j.status !== "completed" &&
+            j.status !== "failed",
+        ).length,
+        queued: all.filter((j) => j.status === "queued").length,
+        failed: all.filter((j) => j.status === "failed").length,
+      },
+    };
+  }
+
   try {
     const db = getDb();
-    const rows = await db.processingJob.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 200,
-      include: {
-        episode: {
-          select: { episodeTitle: true, podcast: { select: { name: true } } },
-        },
+    const [active, queued, failed, completed, activeTotal, queuedTotal, failedTotal] =
+      await Promise.all([
+        db.processingJob.findMany({
+          where: { status: { in: [...ACTIVE_JOB_STATUSES] } },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+          include: PROCESSING_JOB_INCLUDE,
+        }),
+        db.processingJob.findMany({
+          where: { status: "queued" },
+          orderBy: { createdAt: "asc" },
+          take: 50,
+          include: PROCESSING_JOB_INCLUDE,
+        }),
+        db.processingJob.findMany({
+          where: { status: "failed" },
+          orderBy: { updatedAt: "desc" },
+          take: 25,
+          include: PROCESSING_JOB_INCLUDE,
+        }),
+        db.processingJob.findMany({
+          where: { status: "completed" },
+          orderBy: { completedAt: "desc" },
+          take: 25,
+          include: PROCESSING_JOB_INCLUDE,
+        }),
+        db.processingJob.count({
+          where: { status: { in: [...ACTIVE_JOB_STATUSES] } },
+        }),
+        db.processingJob.count({ where: { status: "queued" } }),
+        db.processingJob.count({ where: { status: "failed" } }),
+      ]);
+
+    return {
+      active: active.map(mapProcessingJobRow),
+      queued: queued.map(mapProcessingJobRow),
+      failed: failed.map(mapProcessingJobRow),
+      completed: completed.map(mapProcessingJobRow),
+      totals: {
+        active: activeTotal,
+        queued: queuedTotal,
+        failed: failedTotal,
       },
-    });
-    return rows.map(
-      (j): ProcessingJobView => ({
-        id: j.id,
-        episodeId: j.episodeId ?? "",
-        episodeTitle:
-          j.episode?.episodeTitle ??
-          (j.sourceId ? `Source sync (${j.sourceId.slice(0, 6)})` : "—"),
-        podcastName: j.episode?.podcast?.name ?? "—",
-        jobType: j.jobType as ProcessingJobView["jobType"],
-        status: j.status as ProcessingJobView["status"],
-        progressPercent: j.progressPercent,
-        workerId: j.workerId,
-        startedAt: j.startedAt?.toISOString() ?? null,
-        completedAt: j.completedAt?.toISOString() ?? null,
-        retryCount: j.retryCount,
-        errorMessage: j.errorMessage,
-        createdAt: j.createdAt.toISOString(),
-      }),
-    );
+    };
   } catch (err) {
-    logError("getAllProcessingJobs", err);
-    return [];
+    logError("getProcessingJobs", err);
+    return {
+      active: [],
+      queued: [],
+      failed: [],
+      completed: [],
+      totals: { active: 0, queued: 0, failed: 0 },
+    };
   }
 }
 
+export async function getAllProcessingJobs(): Promise<ProcessingJobView[]> {
+  const bucket = await getProcessingJobs();
+  return [
+    ...bucket.active,
+    ...bucket.queued,
+    ...bucket.failed,
+    ...bucket.completed,
+  ];
+}
+
 export async function getActiveProcessingJobs(): Promise<ProcessingJobView[]> {
-  const all = await getAllProcessingJobs();
-  return all.filter(
-    (j) => j.status !== "completed" && j.status !== "queued",
-  );
+  if (useDemoData()) {
+    return demoProcessingJobs.filter(
+      (j) => j.status !== "completed" && j.status !== "queued",
+    );
+  }
+  try {
+    const db = getDb();
+    const rows = await db.processingJob.findMany({
+      where: { status: { in: [...ACTIVE_JOB_STATUSES] } },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      include: PROCESSING_JOB_INCLUDE,
+    });
+    return rows.map(mapProcessingJobRow);
+  } catch (err) {
+    logError("getActiveProcessingJobs", err);
+    return [];
+  }
 }
 
 // ─── Downloads ────────────────────────────────────────────────────────────
