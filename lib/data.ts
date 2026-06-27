@@ -288,6 +288,72 @@ export async function getEpisode(id: string): Promise<EpisodeView | null> {
   }
 }
 
+export type EpisodeUsage = {
+  audioBytes: number;
+  embeddingTokens: number;
+  durationSeconds: number;
+  isTranscribed: boolean;
+  transcriptionCostUsd: number;
+  embeddingCostUsd: number;
+  totalCostUsd: number;
+};
+
+/** Real, per-episode usage + cost derived from measured metering. */
+export async function getEpisodeUsage(
+  id: string,
+): Promise<EpisodeUsage | null> {
+  if (useDemoData()) {
+    const e = demoEpisodes.find((d) => d.id === id);
+    if (!e) return null;
+    const minutes = (e.durationSeconds ?? 0) / 60;
+    const transcriptionCostUsd = e.isTranscribed
+      ? minutes * COST_MODEL.whisperUsdPerMinute
+      : 0;
+    const embeddingTokens = Math.round((e.durationSeconds ?? 0) * 2.6);
+    const embeddingCostUsd =
+      (embeddingTokens / 1_000_000) * COST_MODEL.embeddingUsdPer1MTokens;
+    return {
+      audioBytes: Math.round((e.durationSeconds ?? 0) * 16000),
+      embeddingTokens,
+      durationSeconds: e.durationSeconds ?? 0,
+      isTranscribed: e.isTranscribed,
+      transcriptionCostUsd,
+      embeddingCostUsd,
+      totalCostUsd: transcriptionCostUsd + embeddingCostUsd,
+    };
+  }
+  try {
+    const db = getDb();
+    const e = await db.episode.findUnique({
+      where: { id },
+      select: {
+        audioBytes: true,
+        embeddingTokens: true,
+        durationSeconds: true,
+        isTranscribed: true,
+      },
+    });
+    if (!e) return null;
+    const transcriptionCostUsd = e.isTranscribed
+      ? ((e.durationSeconds ?? 0) / 60) * COST_MODEL.whisperUsdPerMinute
+      : 0;
+    const embeddingCostUsd =
+      (e.embeddingTokens / 1_000_000) * COST_MODEL.embeddingUsdPer1MTokens;
+    return {
+      audioBytes: e.audioBytes,
+      embeddingTokens: e.embeddingTokens,
+      durationSeconds: e.durationSeconds ?? 0,
+      isTranscribed: e.isTranscribed,
+      transcriptionCostUsd,
+      embeddingCostUsd,
+      totalCostUsd: transcriptionCostUsd + embeddingCostUsd,
+    };
+  } catch (err) {
+    logError("getEpisodeUsage", err);
+    return null;
+  }
+}
+
 export async function getRecentEpisodes(limit = 5): Promise<EpisodeView[]> {
   if (useDemoData()) {
     return [...demoEpisodes]
