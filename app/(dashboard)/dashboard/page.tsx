@@ -174,16 +174,14 @@ export default async function DashboardPage() {
                 href={`/episodes/${ep.id}`}
                 className="flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-md hover:bg-bg-elevated transition-colors"
               >
-                <div className="w-12 h-9 rounded bg-bg-elevated overflow-hidden flex-shrink-0 flex items-center justify-center text-text-muted">
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                  >
-                    <polygon points="6,4 20,12 6,20" fill="currentColor" />
-                  </svg>
+                <div className="w-12 h-9 rounded bg-bg-elevated overflow-hidden flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={ep.thumbnailUrl}
+                    alt=""
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">
