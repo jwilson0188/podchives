@@ -169,6 +169,30 @@ export async function getPodcasts(): Promise<PodcastView[]> {
 
 // ─── Sources ──────────────────────────────────────────────────────────────
 
+/** Global auto-sync rollup for the dashboard master switch. */
+export async function getAutoSyncSummary(): Promise<{
+  total: number;
+  enabled: number;
+}> {
+  if (useDemoData()) {
+    return {
+      total: demoSources.length,
+      enabled: demoSources.filter((s) => s.autoSync).length,
+    };
+  }
+  try {
+    const db = getDb();
+    const [total, enabled] = await Promise.all([
+      db.source.count(),
+      db.source.count({ where: { autoSync: true } }),
+    ]);
+    return { total, enabled };
+  } catch (err) {
+    logError("getAutoSyncSummary", err);
+    return { total: 0, enabled: 0 };
+  }
+}
+
 export async function getSources(): Promise<SourceView[]> {
   if (useDemoData()) return demoSources;
   try {

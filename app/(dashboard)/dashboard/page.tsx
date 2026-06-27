@@ -5,8 +5,10 @@ import { GlobalSearchBar } from "@/components/search/GlobalSearchBar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { UsageCreditsCard } from "@/components/usage/UsageCreditsCard";
+import { AutoSyncButton } from "@/components/dashboard/AutoSyncButton";
 import {
   getActiveProcessingJobs,
+  getAutoSyncSummary,
   getDashboardStats,
   getRecentEpisodes,
   getRecentSearches,
@@ -20,14 +22,14 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function DashboardPage() {
-  const [stats, recentEpisodes, activeJobs, recentSearches] = await Promise.all(
-    [
+  const [stats, recentEpisodes, activeJobs, recentSearches, autoSync] =
+    await Promise.all([
       getDashboardStats(),
       getRecentEpisodes(5),
       getActiveProcessingJobs(),
       getRecentSearches(4),
-    ],
-  );
+      getAutoSyncSummary(),
+    ]);
 
   return (
     <div>
@@ -35,6 +37,9 @@ export default async function DashboardPage() {
         eyebrow="podchives // overview"
         title="Dashboard"
         description="Your archive at a glance — search, ingestion, transcription, indexing."
+        actions={
+          <AutoSyncButton total={autoSync.total} enabled={autoSync.enabled} />
+        }
       />
 
       <section className="card p-5 lg:p-7 mb-8 terminal-grid">
