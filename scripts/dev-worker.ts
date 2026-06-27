@@ -7,6 +7,7 @@
  */
 import "tsx/esm/api";
 import { getDb } from "../lib/db";
+import { isWorkerEnabled } from "../lib/workerControl";
 import { processConcurrently } from "../workers/processingWorker";
 import { enqueueDueSourceSyncs } from "../lib/queue";
 
@@ -50,6 +51,11 @@ async function maybeAutoSync() {
 async function loop() {
   while (running) {
     try {
+      const enabled = await isWorkerEnabled();
+      if (!enabled) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        continue;
+      }
       await maybeAutoSync();
       const results = await processConcurrently({
         concurrency: WORKER_CONCURRENCY,
