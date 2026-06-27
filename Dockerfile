@@ -1,7 +1,7 @@
 # Background worker image for Podchives.
 # Render's native Node runtime can't install system packages (no root), so we
 # ship a Docker image with ffmpeg + yt-dlp baked in.
-FROM node:20-slim
+FROM node:20-slim AS base
 
 # System deps:
 #   ffmpeg   — audio extraction + chunking + ffprobe (lib/transcription.ts)
@@ -30,14 +30,22 @@ RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
 
 WORKDIR /app
 
-# Install node deps from the lockfile for reproducible builds.
+# ── Build stage: dev deps for prisma generate + typecheck only ──────────────
+FROM base AS build
+
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 
-# App source.
 COPY . .
-
-# Prisma client + typecheck (matches the prior build intent).
 RUN npx prisma generate && npx tsc --noEmit
+
+# ── Runtime stage: production deps only (no eslint → no deprecation spam) ───
+FROM base AS runner
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
+
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY . .
 
 CMD ["npm", "run", "worker"]
