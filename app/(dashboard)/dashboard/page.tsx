@@ -3,6 +3,7 @@ import {
   getAutoSyncSummary,
   getActiveProcessingJobs,
   buildLiveSnapshot,
+  getBackfillEstimate,
   getCockpitSummaryWithRetry,
   getDataMode,
   getFeaturedClip,
@@ -18,13 +19,14 @@ export default async function DashboardPage() {
   const activeJobs = await getActiveProcessingJobs();
   const liveSnapshot = buildLiveSnapshot(cockpit, activeJobs);
 
-  const [featuredClip, recentEpisodes, recentSearches, autoSync, usage] =
+  const [featuredClip, recentEpisodes, recentSearches, autoSync, usage, backfill] =
     await Promise.all([
       getFeaturedClip(),
       getRecentEpisodes(6),
       getRecentSearches(5),
       getAutoSyncSummary(),
       getUsageStats(),
+      getBackfillEstimate(),
     ]);
 
   const isDemo = getDataMode() === "demo";
@@ -32,6 +34,7 @@ export default async function DashboardPage() {
   return (
     <DashboardShell
       isDemo={isDemo}
+      backfill={backfill}
       server={{
         cockpit,
         featuredClip,

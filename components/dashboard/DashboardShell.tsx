@@ -14,6 +14,7 @@ import { SourceHealthPanel } from "@/components/dashboard/SourceHealthPanel";
 import { ArchiveTiles } from "@/components/dashboard/ArchiveTiles";
 import { ClipOfTheWeek } from "@/components/dashboard/ClipOfTheWeek";
 import { EpisodeGridCard } from "@/components/dashboard/EpisodeGridCard";
+import type { BackfillEstimate } from "@/lib/data";
 import {
   cockpitSourcesMissing,
   dashboardHasArchiveData,
@@ -26,9 +27,11 @@ import { formatRelativeDate } from "@/lib/utils";
 export function DashboardShell({
   server,
   isDemo,
+  backfill,
 }: {
   server: DashboardPayload;
   isDemo: boolean;
+  backfill: BackfillEstimate;
 }) {
   const [clientRefresh, setClientRefresh] = useState<DashboardPayload | null>(
     null,
@@ -92,6 +95,8 @@ export function DashboardShell({
       <div>
         <BrandHero
           cockpit={data.cockpit}
+          backfillInitial={backfill}
+          showBackfillHint={!isDemo}
           actions={
             <AutoSyncButton
               total={data.autoSync.total}

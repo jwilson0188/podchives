@@ -94,6 +94,21 @@ export type DashboardLiveSnapshot = Pick<
 
 export type UsageStats = typeof demoUsage;
 
+export type BackfillEstimate = {
+  remainingEpisodes: number;
+  remainingMinutes: number;
+  whisperCostUsd: number;
+  embeddingCostUsd: number;
+  totalCostUsd: number;
+  totalCostUsdLow: number;
+  totalCostUsdHigh: number;
+};
+
+export type UsagePayload = {
+  usage: UsageStats;
+  backfill: BackfillEstimate;
+};
+
 export function useDemoData(): boolean {
   return IS_DEMO_MODE || !hasDatabase();
 }
@@ -947,6 +962,120 @@ export async function getUsageStats(): Promise<UsageStats> {
 function startOfCurrentMonth(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+/** Estimate embedding tokens from audio length when not yet transcribed. */
+function estimateEmbeddingTokens(durationSeconds: number): number {
+  return Math.round(durationSeconds * COST_MODEL.tokensPerSecondOfSpeech);
+}
+
+type BackfillEpisodeRow = {
+  durationSeconds: number | null;
+  isTranscribed: boolean;
+  embeddingTokens: number;
+};
+
+function computeBackfillEstimate(
+  episodes: BackfillEpisodeRow[],
+  fallbackDurationSeconds: number,
+): BackfillEstimate {
+  if (episodes.length === 0) {
+    return {
+      remainingEpisodes: 0,
+      remainingMinutes: 0,
+      whisperCostUsd: 0,
+      embeddingCostUsd: 0,
+      totalCostUsd: 0,
+      totalCostUsdLow: 0,
+      totalCostUsdHigh: 0,
+    };
+  }
+
+  let remainingSeconds = 0;
+  let whisperCostUsd = 0;
+  let embeddingCostUsd = 0;
+
+  for (const e of episodes) {
+    const sec =
+      e.durationSeconds && e.durationSeconds > 0
+        ? e.durationSeconds
+        : fallbackDurationSeconds;
+    remainingSeconds += sec;
+
+    if (!e.isTranscribed) {
+      whisperCostUsd += (sec / 60) * COST_MODEL.whisperUsdPerMinute;
+    }
+
+    const tokens =
+      e.isTranscribed && e.embeddingTokens > 0
+        ? e.embeddingTokens
+        : estimateEmbeddingTokens(sec);
+    embeddingCostUsd +=
+      (tokens / 1_000_000) * COST_MODEL.embeddingUsdPer1MTokens;
+  }
+
+  const totalCostUsd = whisperCostUsd + embeddingCostUsd;
+  const variance = COST_MODEL.backfillCostVariance;
+
+  return {
+    remainingEpisodes: episodes.length,
+    remainingMinutes: Math.round(remainingSeconds / 60),
+    whisperCostUsd,
+    embeddingCostUsd,
+    totalCostUsd,
+    totalCostUsdLow: totalCostUsd * (1 - variance),
+    totalCostUsdHigh: totalCostUsd * (1 + variance),
+  };
+}
+
+/** Estimated OpenAI cost to finish processing the current backlog. */
+export async function getBackfillEstimate(): Promise<BackfillEstimate> {
+  if (useDemoData()) {
+    const backlog = demoEpisodes.filter((e) => !e.isSearchable);
+    return computeBackfillEstimate(
+      backlog.map((e) => ({
+        durationSeconds: e.durationSeconds ?? null,
+        isTranscribed: e.isTranscribed,
+        embeddingTokens: Math.round((e.durationSeconds ?? 0) * 2.6),
+      })),
+      3600,
+    );
+  }
+
+  try {
+    const db = getDb();
+    const [episodes, avgRow] = await Promise.all([
+      db.episode.findMany({
+        where: { isSearchable: false },
+        select: {
+          durationSeconds: true,
+          isTranscribed: true,
+          embeddingTokens: true,
+        },
+      }),
+      db.episode.aggregate({
+        where: { durationSeconds: { gt: 0 } },
+        _avg: { durationSeconds: true },
+      }),
+    ]);
+
+    const fallbackDurationSeconds = Math.round(
+      avgRow._avg.durationSeconds ?? 3600,
+    );
+
+    return computeBackfillEstimate(episodes, fallbackDurationSeconds);
+  } catch (err) {
+    logError("getBackfillEstimate", err);
+    return computeBackfillEstimate([], 3600);
+  }
+}
+
+export async function getUsagePayload(): Promise<UsagePayload> {
+  const [usage, backfill] = await Promise.all([
+    getUsageStats(),
+    getBackfillEstimate(),
+  ]);
+  return { usage, backfill };
 }
 
 // ─── First-podcast helper for demo cards ──────────────────────────────────

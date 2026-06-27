@@ -1,11 +1,11 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { UsageLiveBody } from "@/components/usage/UsageLiveBody";
-import { getDataMode, getUsageStats } from "@/lib/data";
+import { getDataMode, getUsagePayload } from "@/lib/data";
 
 export const metadata = { title: "Usage / Compute" };
 
 export default async function UsagePage() {
-  const usage = await getUsageStats();
+  const payload = await getUsagePayload();
   const isDemo = getDataMode() === "demo";
 
   return (
@@ -13,10 +13,10 @@ export default async function UsagePage() {
       <PageHeader
         eyebrow="ops // usage"
         title="Usage / Compute"
-        description={`Transcription, embeddings, and storage to date · compute budget for ${usage.monthLabel}.`}
+        description={`Transcription, embeddings, and storage to date · compute budget for ${payload.usage.monthLabel}.`}
       />
 
-      <UsageLiveBody initial={usage} isDemo={isDemo} />
+      <UsageLiveBody initial={payload} isDemo={isDemo} />
     </div>
   );
 }

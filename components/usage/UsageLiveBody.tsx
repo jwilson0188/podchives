@@ -1,23 +1,26 @@
 "use client";
 
 import { StatCard } from "@/components/ui/StatCard";
+import { BackfillEstimateCard } from "@/components/usage/BackfillEstimateCard";
 import { COST_MODEL } from "@/lib/constants";
-import type { UsageStats } from "@/lib/data";
+import type { UsagePayload } from "@/lib/data";
 import { useLivePoll } from "@/hooks/useLivePoll";
 
 export function UsageLiveBody({
   initial,
   isDemo,
 }: {
-  initial: UsageStats;
+  initial: UsagePayload;
   isDemo: boolean;
 }) {
-  const { data: usage, live } = useLivePoll(
-    "/api/usage",
+  const { data, live } = useLivePoll(
+    "/api/usage/full",
     initial,
     15_000,
     !isDemo,
   );
+  const usage = data.usage;
+  const backfill = data.backfill;
 
   const pct =
     usage.creditsTotal > 0
@@ -27,6 +30,8 @@ export function UsageLiveBody({
 
   return (
     <>
+      <BackfillEstimateCard backfill={backfill} live={live && !isDemo} isDemo={isDemo} />
+
       <section className="card p-5 mb-6">
         <div className="flex items-baseline justify-between mb-2">
           <h2 className="font-semibold tracking-tight flex items-center gap-2">

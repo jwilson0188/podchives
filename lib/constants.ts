@@ -28,6 +28,10 @@ export const COST_MODEL = {
   thumbnailBytesEstimate: 50_000,
   /** Fallback monthly compute budget (minutes) when no scheduler row exists. */
   defaultComputeLimitMinutes: 200,
+  /** Spoken-English heuristic for embedding estimates on unprocessed episodes. */
+  tokensPerSecondOfSpeech: 2.6,
+  /** ± range on backfill $ estimates (duration / transcript variance). */
+  backfillCostVariance: 0.12,
 } as const;
 
 export const SOURCE_TYPES = [

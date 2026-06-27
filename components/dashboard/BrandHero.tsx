@@ -1,5 +1,5 @@
-import Link from "next/link";
-import type { CockpitSummary } from "@/lib/data";
+import type { BackfillEstimate, CockpitSummary } from "@/lib/data";
+import { BackfillCostHint } from "./BackfillCostHint";
 import {
   CoverageRingLive,
   HeroMetricsLive,
@@ -9,9 +9,13 @@ import {
 export function BrandHero({
   cockpit,
   actions,
+  backfillInitial,
+  showBackfillHint,
 }: {
   cockpit: CockpitSummary;
   actions?: React.ReactNode;
+  backfillInitial?: BackfillEstimate;
+  showBackfillHint?: boolean;
 }) {
   const primary = cockpit.archives[0] ?? null;
   const multiBrand = cockpit.archives.length > 1;
@@ -60,6 +64,9 @@ export function BrandHero({
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end sm:justify-start">
+                {showBackfillHint && (
+                  <BackfillCostHint initial={backfillInitial} />
+                )}
                 <WorkerStatusPill />
                 {actions}
               </div>
