@@ -8,14 +8,20 @@ import { formatTimestamp, highlight } from "@/lib/utils";
 
 export function TranscriptViewer({
   episodeTitle,
-  podcastName,
-  sourceUrl,
+  archiveName,
+  sourceName,
+  sourceChannelUrl,
+  sourceTypeLabel,
+  videoUrl,
   thumbnailUrl,
   segments,
 }: {
   episodeTitle: string;
-  podcastName: string;
-  sourceUrl: string;
+  archiveName: string;
+  sourceName: string;
+  sourceChannelUrl: string;
+  sourceTypeLabel: string;
+  videoUrl: string;
   thumbnailUrl: string;
   segments: DemoTranscriptSegment[];
 }) {
@@ -49,7 +55,7 @@ export function TranscriptViewer({
       <div className="space-y-4 min-w-0">
         <EpisodePlayer
           ref={playerRef}
-          sourceUrl={sourceUrl}
+          sourceUrl={videoUrl}
           title={episodeTitle}
           thumbnailUrl={thumbnailUrl}
           initialSeconds={initialSeconds}
@@ -60,18 +66,32 @@ export function TranscriptViewer({
             Source attribution
           </div>
           <div className="space-y-2 text-sm font-mono min-w-0">
-            <Row label="podcast" value={podcastName} />
-            <Row label="episode" value={episodeTitle} />
+            <Row label="archive" value={archiveName} />
             <Row
               label="source"
               value={
                 <a
-                  href={sourceUrl}
+                  href={sourceChannelUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan hover:underline break-words [overflow-wrap:anywhere]"
+                >
+                  {sourceName}
+                </a>
+              }
+              sub={sourceTypeLabel}
+            />
+            <Row label="episode" value={episodeTitle} />
+            <Row
+              label="video"
+              value={
+                <a
+                  href={videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-cyan hover:underline break-all"
                 >
-                  {sourceUrl}
+                  {videoUrl}
                 </a>
               }
             />
@@ -150,18 +170,25 @@ export function TranscriptViewer({
 function Row({
   label,
   value,
+  sub,
 }: {
   label: string;
   value: React.ReactNode;
+  sub?: string;
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-[4.5rem_minmax(0,1fr)] gap-1 sm:gap-3 min-w-0">
       <span className="text-[11px] uppercase tracking-widest text-text-muted shrink-0">
         {label}
       </span>
-      <span className="text-text-primary min-w-0 break-words [overflow-wrap:anywhere]">
-        {value}
-      </span>
+      <div className="min-w-0">
+        <span className="text-text-primary min-w-0 break-words [overflow-wrap:anywhere] block">
+          {value}
+        </span>
+        {sub && (
+          <span className="text-[10px] text-text-dim mt-0.5 block">{sub}</span>
+        )}
+      </div>
     </div>
   );
 }

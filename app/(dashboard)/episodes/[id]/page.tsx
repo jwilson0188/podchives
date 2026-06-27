@@ -6,25 +6,36 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TranscriptViewer } from "@/components/episodes/TranscriptViewer";
 import { EpisodeShareActions } from "@/components/episodes/EpisodeShareActions";
 import {
-  getEpisode,
   getEpisodeUsage,
-  getPrimaryPodcast,
+  getEpisodeWithContext,
   getSegmentsForEpisode,
 } from "@/lib/data";
 import { formatDate, formatDuration } from "@/lib/utils";
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  youtube_channel: "YouTube channel",
+  youtube_playlist: "YouTube playlist",
+  youtube_video: "YouTube video",
+  rss_future: "RSS feed",
+  manual_upload_future: "Manual upload",
+  patreon_future: "Patreon",
+};
 
 export default async function EpisodeDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const [ep, segments, podcast, usage] = await Promise.all([
-    getEpisode(params.id),
+  const [detail, segments, usage] = await Promise.all([
+    getEpisodeWithContext(params.id),
     getSegmentsForEpisode(params.id),
-    getPrimaryPodcast(),
     getEpisodeUsage(params.id),
   ]);
-  if (!ep) notFound();
+  if (!detail) notFound();
+
+  const { episode: ep, podcast, source } = detail;
+  const sourceTypeLabel =
+    SOURCE_TYPE_LABELS[source.sourceType] ?? source.sourceType;
 
   return (
     <div className="min-w-0">
@@ -120,8 +131,11 @@ export default async function EpisodeDetailPage({
       <Suspense fallback={null}>
         <TranscriptViewer
           episodeTitle={ep.episodeTitle}
-          podcastName={podcast.name}
-          sourceUrl={ep.sourceUrl}
+          archiveName={podcast.name}
+          sourceName={source.sourceName}
+          sourceChannelUrl={source.sourceUrl}
+          sourceTypeLabel={sourceTypeLabel}
+          videoUrl={ep.sourceUrl}
           thumbnailUrl={ep.thumbnailUrl}
           segments={segments}
         />
