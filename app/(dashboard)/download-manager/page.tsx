@@ -81,9 +81,9 @@ export default async function DownloadManagerPage() {
       </section>
 
       <section>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
           <h2 className="font-semibold tracking-tight">Episode pipeline</h2>
-          <span className="text-[11px] text-text-muted font-mono">
+          <span className="text-[11px] text-text-muted font-mono break-words">
             ingest → download → transcribe → embed → index → searchable
           </span>
         </div>

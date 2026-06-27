@@ -7,7 +7,6 @@ import { UsageCreditsCard } from "@/components/usage/UsageCreditsCard";
 import { AutoSyncButton } from "@/components/dashboard/AutoSyncButton";
 import { BrandHero } from "@/components/dashboard/BrandHero";
 import { DashboardLiveProvider } from "@/components/dashboard/DashboardLiveProvider";
-import { LivePipelineStrip } from "@/components/dashboard/LivePipelineStrip";
 import { LiveProcessingPanel } from "@/components/dashboard/LiveProcessingPanel";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { SourceHealthPanel } from "@/components/dashboard/SourceHealthPanel";
@@ -124,8 +123,6 @@ export function DashboardShell({
         </section>
 
         <QuickActions />
-
-        <LivePipelineStrip />
 
         <section className="grid lg:grid-cols-3 gap-4 lg:gap-6 mb-6">
           <div className="lg:col-span-2">

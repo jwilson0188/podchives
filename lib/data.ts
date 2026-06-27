@@ -600,6 +600,94 @@ export async function getEpisode(id: string): Promise<EpisodeView | null> {
   }
 }
 
+export type EpisodeDetailContext = {
+  episode: EpisodeView;
+  podcast: Pick<
+    PodcastView,
+    "id" | "name" | "slug" | "officialUrl" | "coverImageUrl"
+  >;
+  source: Pick<
+    SourceView,
+    "id" | "sourceName" | "sourceUrl" | "sourceType"
+  >;
+};
+
+/** Episode plus its owning archive and connected source — for detail attribution. */
+export async function getEpisodeWithContext(
+  id: string,
+): Promise<EpisodeDetailContext | null> {
+  if (useDemoData()) {
+    const episode = demoEpisodes.find((e) => e.id === id);
+    if (!episode) return null;
+    const podcast =
+      demoPodcasts.find((p) => p.id === episode.podcastId) ?? demoPodcast;
+    const source =
+      demoSources.find((s) => s.id === episode.sourceId) ?? demoSources[0]!;
+    return {
+      episode,
+      podcast: {
+        id: podcast.id,
+        name: podcast.name,
+        slug: podcast.slug,
+        officialUrl: podcast.officialUrl,
+        coverImageUrl: podcast.coverImageUrl,
+      },
+      source: {
+        id: source.id,
+        sourceName: source.sourceName,
+        sourceUrl: source.sourceUrl,
+        sourceType: source.sourceType,
+      },
+    };
+  }
+
+  try {
+    const db = getDb();
+    const row = await db.episode.findUnique({
+      where: { id },
+      include: {
+        podcast: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            officialUrl: true,
+            coverImageUrl: true,
+          },
+        },
+        source: {
+          select: {
+            id: true,
+            sourceName: true,
+            sourceUrl: true,
+            sourceType: true,
+          },
+        },
+      },
+    });
+    if (!row?.podcast || !row.source) return null;
+    return {
+      episode: toEpisodeView(row),
+      podcast: {
+        id: row.podcast.id,
+        name: row.podcast.name,
+        slug: row.podcast.slug,
+        officialUrl: row.podcast.officialUrl ?? "",
+        coverImageUrl: row.podcast.coverImageUrl ?? "",
+      },
+      source: {
+        id: row.source.id,
+        sourceName: row.source.sourceName,
+        sourceUrl: row.source.sourceUrl,
+        sourceType: row.source.sourceType as SourceView["sourceType"],
+      },
+    };
+  } catch (err) {
+    logError("getEpisodeWithContext", err);
+    return null;
+  }
+}
+
 export type EpisodeUsage = {
   audioBytes: number;
   embeddingTokens: number;

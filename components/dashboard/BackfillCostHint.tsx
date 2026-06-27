@@ -34,7 +34,7 @@ export function BackfillCostHint({
   return (
     <Link
       href="/usage"
-      className="text-[11px] text-text-muted hover:text-accent border border-border rounded-md px-2.5 py-1.5 bg-bg-subtle transition-colors"
+      className="text-[11px] text-text-muted hover:text-accent border border-border rounded-md px-2.5 py-1.5 bg-bg-subtle transition-colors max-w-full break-words text-center sm:text-left"
       title="Estimated OpenAI cost to finish processing your backlog"
     >
       <span className="text-warn font-medium">
