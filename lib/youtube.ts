@@ -87,7 +87,22 @@ function buildYtDlpBaseArgs(): string[] {
   return args;
 }
 
-export function runYtDlp(args: string[]): Promise<string> {
+export function parseYtDlpProgress(line: string): number | null {
+  const download = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
+  if (download) {
+    return Math.min(100, Math.max(0, Math.round(Number(download[1]))));
+  }
+  const extract = line.match(/\[ExtractAudio\]\s+(\d+(?:\.\d+)?)%/);
+  if (extract) {
+    return Math.min(100, Math.max(0, Math.round(Number(extract[1]))));
+  }
+  return null;
+}
+
+export function runYtDlp(
+  args: string[],
+  opts?: { onStderrLine?: (line: string) => void },
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const fullArgs = [...buildYtDlpBaseArgs(), ...args];
     const child = spawn("yt-dlp", fullArgs, {
@@ -96,7 +111,15 @@ export function runYtDlp(args: string[]): Promise<string> {
     let out = "";
     let err = "";
     child.stdout.on("data", (d) => (out += d.toString()));
-    child.stderr.on("data", (d) => (err += d.toString()));
+    child.stderr.on("data", (d) => {
+      const chunk = d.toString();
+      err += chunk;
+      if (opts?.onStderrLine) {
+        for (const line of chunk.split(/\r?\n/)) {
+          if (line.trim()) opts.onStderrLine(line);
+        }
+      }
+    });
     child.on("error", (e) =>
       reject(
         new Error(
@@ -273,23 +296,34 @@ export async function cacheThumbnail(
 export async function downloadAudio(
   episodeId: string,
   sourceUrl: string,
+  onProgress?: (percent: number) => void | Promise<void>,
 ): Promise<string> {
   ensureStorageDirs();
   const dir = path.dirname(localPath("audio", `${episodeId}.mp3`));
   const out = path.join(dir, `${episodeId}.%(ext)s`);
 
-  await runYtDlp([
-    "-f",
-    "bestaudio[ext=m4a]/bestaudio/best",
-    "--extract-audio",
-    "--audio-format",
-    "mp3",
-    "--audio-quality",
-    "0",
-    "-o",
-    out,
-    sourceUrl,
-  ]);
+  await runYtDlp(
+    [
+      "-f",
+      "bestaudio[ext=m4a]/bestaudio/best",
+      "--extract-audio",
+      "--audio-format",
+      "mp3",
+      "--audio-quality",
+      "0",
+      "-o",
+      out,
+      sourceUrl,
+    ],
+    {
+      onStderrLine: (line) => {
+        const pct = parseYtDlpProgress(line);
+        if (pct != null && onProgress) {
+          void Promise.resolve(onProgress(pct));
+        }
+      },
+    },
+  );
 
   const finalPath = path.join(dir, `${episodeId}.mp3`);
   if (!fs.existsSync(finalPath)) {

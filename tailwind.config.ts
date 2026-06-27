@@ -54,6 +54,20 @@ const config: Config = {
         card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.06)",
         glow: "0 0 24px rgba(255,61,0,0.25)",
       },
+      keyframes: {
+        "progress-shimmer": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(200%)" },
+        },
+        "progress-glow": {
+          "0%, 100%": { opacity: "0.85" },
+          "50%": { opacity: "1" },
+        },
+      },
+      animation: {
+        "progress-shimmer": "progress-shimmer 1.4s ease-in-out infinite",
+        "progress-glow": "progress-glow 2s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

@@ -13,7 +13,6 @@ import {
 } from "@/lib/transcription";
 import { shouldTryYouTubeCaptions } from "@/lib/transcriptionConfig";
 import {
-  markJobCompleted,
   markJobFailed,
   updateJobProgress,
   updateJobStatus,
@@ -62,7 +61,7 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
     });
 
     await markEpisodeTranscribed(episodeId);
-    await markJobCompleted(jobId);
+    await updateJobProgress(jobId, 100);
     return { segments: resolved.segments.length };
   } catch (err: any) {
     await markJobFailed(jobId, err?.message ?? "Transcription failed");
@@ -123,7 +122,7 @@ export async function runSegmentationJob(jobId: string, episodeId: string) {
       replace: true,
     });
 
-    await markJobCompleted(jobId);
+    await updateJobProgress(jobId, 100);
     return { segments: packed.length };
   } catch (err: any) {
     await markJobFailed(jobId, err?.message ?? "Segmentation failed");

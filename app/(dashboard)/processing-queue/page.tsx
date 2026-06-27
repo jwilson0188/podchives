@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ProcessingQueueTable } from "@/components/processing/ProcessingQueueTable";
+import { ProcessingQueueLiveBody } from "@/components/processing/ProcessingQueueLiveBody";
 import { WorkerControls } from "@/components/processing/WorkerControls";
 import { IS_DEMO_MODE } from "@/lib/constants";
 import { getProcessingJobs } from "@/lib/data";
@@ -72,29 +72,9 @@ export default async function ProcessingQueuePage() {
         />
       </section>
 
-      <ProcessingQueueTable
-        title="Active"
-        jobs={active}
-        emptyTitle="No jobs running right now."
-      />
-      <ProcessingQueueTable
-        title="Failed"
-        jobs={failed}
-        emptyTitle="No failed jobs. All clear."
-      />
-      <ProcessingQueueTable
-        title="Queued"
-        jobs={queued}
-        emptyTitle={
-          totals.queued > 50
-            ? `Nothing in the first 50 — ${totals.queued.toLocaleString()} total queued.`
-            : "Nothing queued."
-        }
-      />
-      <ProcessingQueueTable
-        title="Recently completed"
-        jobs={completed}
-        emptyTitle="No completed jobs yet."
+      <ProcessingQueueLiveBody
+        initial={{ active, queued, failed, completed, totals }}
+        enabled={!IS_DEMO_MODE && hasDatabase()}
       />
     </div>
   );
