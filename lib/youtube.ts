@@ -10,6 +10,26 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
+
+/**
+ * yt-dlp writes refreshed cookies back to the --cookies file when the session
+ * ends. Render mounts secret files read-only (/etc/secrets), which makes
+ * yt-dlp crash with "Read-only file system". Copy the cookies to a writable
+ * temp path on first use and hand yt-dlp that instead.
+ */
+function resolveCookiesFile(): string | null {
+  const src = process.env.YOUTUBE_COOKIES_FILE;
+  if (!src || !fs.existsSync(src)) return null;
+  const writable = path.join(os.tmpdir(), "podchives-cookies.txt");
+  try {
+    // Copy once per container; let yt-dlp refresh the writable copy after that.
+    if (!fs.existsSync(writable)) fs.copyFileSync(src, writable);
+    return writable;
+  } catch {
+    return src;
+  }
+}
 
 import type { SourceType } from "./constants";
 import { slugify } from "./utils";
@@ -54,10 +74,10 @@ function buildYtDlpBaseArgs(): string[] {
     "ejs:github",
   ];
 
-  const cookiesFile = process.env.YOUTUBE_COOKIES_FILE;
+  const cookiesFile = resolveCookiesFile();
   const cookiesBrowser = process.env.YOUTUBE_COOKIES_FROM_BROWSER;
 
-  if (cookiesFile && fs.existsSync(cookiesFile)) {
+  if (cookiesFile) {
     args.push("--cookies", cookiesFile);
   } else if (cookiesBrowser) {
     // e.g. YOUTUBE_COOKIES_FROM_BROWSER=chrome
