@@ -78,10 +78,10 @@ export default async function SearchPage({
         )}
       </div>
 
-      <div className="grid lg:grid-cols-[260px_minmax(0,1fr)] gap-6">
+      <div className="flex flex-col lg:grid lg:grid-cols-[260px_minmax(0,1fr)] gap-4 lg:gap-6">
         <FilterPanel archives={archives} />
 
-        <div className="space-y-3">
+        <div className="space-y-3 min-w-0">
           {results.length === 0 && query && (
             <EmptyState
               title={`No matches for "${query}"`}

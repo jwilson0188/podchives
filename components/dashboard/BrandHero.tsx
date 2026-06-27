@@ -96,7 +96,7 @@ export function BrandHero({
                   {subtitle}
                 </p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end sm:justify-start">
                 <WorkerPill active={cockpit.workerActive} stats={cockpit.stats} />
                 {actions}
               </div>

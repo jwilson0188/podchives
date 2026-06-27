@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TranscriptViewer } from "@/components/episodes/TranscriptViewer";
+import { EpisodeShareActions } from "@/components/episodes/EpisodeShareActions";
 import {
   getEpisode,
   getEpisodeUsage,
@@ -60,11 +61,18 @@ export default async function EpisodeDetailPage({
         actions={
           <>
             <StatusBadge status={ep.processingStatus} />
+            <EpisodeShareActions
+              episodeId={ep.id}
+              episodeTitle={ep.episodeTitle}
+              sourceUrl={ep.sourceUrl}
+              podcastName={podcast.name}
+              publishDate={ep.publishDate}
+            />
             <a
               href={ep.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-secondary text-xs"
+              className="btn-secondary text-xs hidden sm:inline-flex"
             >
               Open source
             </a>

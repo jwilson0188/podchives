@@ -10,16 +10,19 @@ import { PipelineStrip } from "@/components/dashboard/PipelineStrip";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { SourceHealthPanel } from "@/components/dashboard/SourceHealthPanel";
 import { ArchiveTiles } from "@/components/dashboard/ArchiveTiles";
+import { ClipOfTheWeek } from "@/components/dashboard/ClipOfTheWeek";
+import { EpisodeGridCard } from "@/components/dashboard/EpisodeGridCard";
 import {
   getActiveProcessingJobs,
   getAutoSyncSummary,
   getCockpitSummary,
   getDataMode,
+  getFeaturedClip,
   getRecentEpisodes,
   getRecentSearches,
   getUsageStats,
 } from "@/lib/data";
-import { formatDate, formatDuration, formatRelativeDate } from "@/lib/utils";
+import { formatDate, formatRelativeDate } from "@/lib/utils";
 
 export const metadata = { title: "Dashboard" };
 
@@ -29,6 +32,7 @@ export const revalidate = 0;
 export default async function DashboardPage() {
   const [
     cockpit,
+    featuredClip,
     recentEpisodes,
     activeJobs,
     recentSearches,
@@ -36,6 +40,7 @@ export default async function DashboardPage() {
     usage,
   ] = await Promise.all([
     getCockpitSummary(),
+    getFeaturedClip(),
     getRecentEpisodes(6),
     getActiveProcessingJobs(),
     getRecentSearches(5),
@@ -57,6 +62,8 @@ export default async function DashboardPage() {
       />
 
       <ArchiveTiles archives={cockpit.archives} />
+
+      {featuredClip && <ClipOfTheWeek clip={featuredClip} />}
 
       {/* Primary creator action — search is the product */}
       <section className="card p-5 lg:p-6 mb-6 terminal-grid">
@@ -244,40 +251,9 @@ export default async function DashboardPage() {
             to start building your searchable archive.
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {recentEpisodes.map((ep) => (
-              <Link
-                key={ep.id}
-                href={`/episodes/${ep.id}`}
-                className="group bg-bg-subtle rounded-lg border border-border overflow-hidden hover:border-border-strong transition-colors"
-              >
-                <div className="aspect-video bg-bg-elevated relative overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={ep.thumbnailUrl}
-                    alt=""
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute top-2 right-2">
-                    <StatusBadge status={ep.processingStatus} />
-                  </div>
-                  {ep.isSearchable && (
-                    <div className="absolute bottom-2 left-2 pill bg-success-muted text-success text-[10px] border border-success/30">
-                      searchable
-                    </div>
-                  )}
-                </div>
-                <div className="p-3">
-                  <div className="text-sm font-medium line-clamp-2 group-hover:text-accent transition-colors">
-                    {ep.episodeTitle}
-                  </div>
-                  <div className="text-[11px] text-text-muted mt-1">
-                    {formatDate(ep.publishDate)} ·{" "}
-                    {formatDuration(ep.durationSeconds)}
-                  </div>
-                </div>
-              </Link>
+              <EpisodeGridCard key={ep.id} episode={ep} />
             ))}
           </div>
         )}

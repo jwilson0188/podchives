@@ -24,6 +24,7 @@ import {
   demoPodcasts,
   demoProcessingJobs,
   demoSearchHistory,
+  demoSearchResults,
   demoSources,
   demoStats,
   demoTranscriptSegments,
@@ -49,6 +50,9 @@ export type DownloadView = DemoDownload;
 export type TranscriptSegmentView = DemoTranscriptSegment;
 export type SearchResultView = DemoSearchResult;
 export type SearchHistoryView = DemoSearchHistory;
+
+/** Featured clip surfaced on the dashboard ("clip of the week"). */
+export type FeaturedClip = SearchResultView & { searchQuery: string };
 
 export type DashboardStats = {
   totalArchives: number;
@@ -795,6 +799,106 @@ function toEpisodeView(e: any): EpisodeView {
 }
 
 // ─── Search wrapper ───────────────────────────────────────────────────────
+
+/**
+ * Best recent search hit for the dashboard "clip of the week". Prefers the
+ * top result from the most recent successful search; falls back to the latest
+ * searchable transcript moment.
+ */
+export async function getFeaturedClip(): Promise<FeaturedClip | null> {
+  if (useDemoData()) {
+    const top = demoSearchResults[0];
+    if (!top) return null;
+    return {
+      ...top,
+      searchQuery: demoSearchHistory[0]?.queryText ?? "archive highlights",
+    };
+  }
+
+  try {
+    const recent = await getRecentSearches(10);
+    const candidate = recent.find((q) => q.resultCount > 0);
+    if (candidate) {
+      const results = await runSearch(candidate.queryText, { limit: 1 });
+      if (results.length > 0) {
+        return { ...results[0], searchQuery: candidate.queryText };
+      }
+    }
+    return await getLatestSearchableClip();
+  } catch (err) {
+    logError("getFeaturedClip", err);
+    return null;
+  }
+}
+
+async function getLatestSearchableClip(): Promise<FeaturedClip | null> {
+  const db = getDb();
+  const rows = await db.$queryRawUnsafe<
+    {
+      id: string;
+      episode_id: string;
+      podcast_id: string;
+      start_time_seconds: number;
+      end_time_seconds: number;
+      transcript_text: string;
+      source_url: string;
+      source_platform: string;
+      episode_title: string;
+      episode_number: number | null;
+      publish_date: Date | null;
+      external_id: string;
+      thumbnail_original_url: string | null;
+      podcast_name: string;
+    }[]
+  >(
+    `
+    SELECT
+      ts.id,
+      ts.episode_id,
+      ts.podcast_id,
+      ts.start_time_seconds,
+      ts.end_time_seconds,
+      ts.transcript_text,
+      ts.source_url,
+      ts.source_platform,
+      e.episode_title,
+      e.episode_number,
+      e.publish_date,
+      e.external_id,
+      e.thumbnail_original_url,
+      p.name AS podcast_name
+    FROM transcript_segments ts
+    JOIN episodes e ON e.id = ts.episode_id
+    JOIN podcasts p ON p.id = ts.podcast_id
+    WHERE e.is_searchable = true
+      AND LENGTH(ts.transcript_text) > 80
+    ORDER BY ts.created_at DESC
+    LIMIT 1
+    `,
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    id: r.id,
+    podcastId: r.podcast_id,
+    podcastName: r.podcast_name,
+    episodeId: r.episode_id,
+    episodeTitle: r.episode_title,
+    episodeNumber: r.episode_number,
+    publishDate: r.publish_date?.toISOString() ?? new Date(0).toISOString(),
+    startTimeSeconds: Number(r.start_time_seconds),
+    endTimeSeconds: Number(r.end_time_seconds),
+    transcriptText: r.transcript_text,
+    sourceUrl: r.source_url,
+    sourcePlatform: r.source_platform as FeaturedClip["sourcePlatform"],
+    relevanceScore: 1,
+    thumbnailUrl: resolveThumbnailUrl({
+      originalUrl: r.thumbnail_original_url,
+      externalId: r.external_id,
+    }),
+    searchQuery: "latest from your archive",
+  };
+}
 
 export async function runSearch(
   query: string,

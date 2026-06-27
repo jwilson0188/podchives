@@ -26,23 +26,85 @@ export function FilterPanel({ archives = [] }: { archives?: ArchiveOption[] }) {
   };
 
   return (
-    <aside className="card p-4 sticky top-20">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold tracking-tight">Filters</h3>
-        <button
-          type="button"
-          onClick={() => {
-            setArchive("all");
-            setPlatform("all");
-            setDateRange("all");
-            setSearchableOnly(true);
-          }}
-          className="text-[11px] text-text-muted hover:text-text-primary uppercase tracking-wider"
-        >
-          Reset
-        </button>
-      </div>
+    <>
+      {/* Mobile: collapsible filters */}
+      <details className="lg:hidden card mb-4 group">
+        <summary className="p-4 cursor-pointer list-none flex items-center justify-between font-semibold text-sm tracking-tight">
+          <span>Filters</span>
+          <span className="text-text-muted text-xs group-open:hidden">Show</span>
+          <span className="text-text-muted text-xs hidden group-open:inline">Hide</span>
+        </summary>
+        <div className="px-4 pb-4 border-t border-border pt-4">
+          <FilterFields
+            archives={archives}
+            archive={archive}
+            setArchive={setArchive}
+            platform={platform}
+            setPlatform={setPlatform}
+            dateRange={dateRange}
+            setDateRange={setDateRange}
+            searchableOnly={searchableOnly}
+            setSearchableOnly={setSearchableOnly}
+          />
+        </div>
+      </details>
 
+      {/* Desktop: sticky sidebar */}
+      <aside className="hidden lg:block card p-4 sticky top-20">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold tracking-tight">Filters</h3>
+          <button
+            type="button"
+            onClick={() => {
+              setArchive("all");
+              setPlatform("all");
+              setDateRange("all");
+              setSearchableOnly(true);
+            }}
+            className="text-[11px] text-text-muted hover:text-text-primary uppercase tracking-wider"
+          >
+            Reset
+          </button>
+        </div>
+        <FilterFields
+          archives={archives}
+          archive={archive}
+          setArchive={setArchive}
+          platform={platform}
+          setPlatform={setPlatform}
+          dateRange={dateRange}
+          setDateRange={setDateRange}
+          searchableOnly={searchableOnly}
+          setSearchableOnly={setSearchableOnly}
+        />
+      </aside>
+    </>
+  );
+}
+
+function FilterFields({
+  archives,
+  archive,
+  setArchive,
+  platform,
+  setPlatform,
+  dateRange,
+  setDateRange,
+  searchableOnly,
+  setSearchableOnly,
+}: {
+  archives: ArchiveOption[];
+  archive: string;
+  setArchive: (v: string) => void;
+  platform: string;
+  setPlatform: (v: string) => void;
+  dateRange: string;
+  setDateRange: (v: string) => void;
+  searchableOnly: boolean;
+  setSearchableOnly: (v: boolean) => void;
+}) {
+  return (
+    <>
       <div className="space-y-4">
         <div>
           <label className="label">Archive</label>
@@ -127,6 +189,6 @@ export function FilterPanel({ archives = [] }: { archives?: ArchiveOption[] }) {
           </button>
         </div>
       </div>
-    </aside>
+    </>
   );
 }
