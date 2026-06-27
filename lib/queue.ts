@@ -56,6 +56,95 @@ export async function queueEpisodeProcessing(episodeId: string) {
   return jobs;
 }
 
+/** The pipeline minus thumbnail caching — used when re-queuing a backlog
+ * episode that already has its thumbnail. */
+const DOWNLOAD_PIPELINE = PROCESSING_ORDER.filter(
+  (t) => t !== "thumbnail_cache",
+);
+
+const ACTIVE_STATUSES = [
+  "queued",
+  "running",
+  "downloading",
+  "transcribing",
+  "segmenting",
+  "embedding",
+  "indexing",
+];
+
+/**
+ * Idempotently enqueue the download→index pipeline for an episode.
+ * Skips episodes that already have audio, are searchable, or already have an
+ * in-flight pipeline job. Safe to call repeatedly (e.g. from a re-sync).
+ * Returns true if jobs were created.
+ */
+export async function queueEpisodeProcessingIfNeeded(
+  episodeId: string,
+): Promise<boolean> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+
+  const ep = await db.episode.findUnique({
+    where: { id: episodeId },
+    select: { id: true, audioFilePath: true, isSearchable: true },
+  });
+  if (!ep) return false;
+  if (ep.audioFilePath || ep.isSearchable) return false;
+
+  const active = await db.processingJob.findFirst({
+    where: {
+      episodeId,
+      jobType: { in: DOWNLOAD_PIPELINE as string[] },
+      status: { in: ACTIVE_STATUSES },
+    },
+    select: { id: true },
+  });
+  if (active) return false;
+
+  for (const jobType of DOWNLOAD_PIPELINE) {
+    await createProcessingJob({ episodeId, jobType });
+  }
+  return true;
+}
+
+/**
+ * Enqueue a `source_sync` job for every source whose last sync is older than
+ * `intervalMinutes` (or never synced) and has no in-flight sync. Drives both
+ * backlog draining and automatic discovery of newly-published videos.
+ * Returns the number of sources queued for sync.
+ */
+export async function enqueueDueSourceSyncs(
+  intervalMinutes: number,
+): Promise<number> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+
+  const cutoff = new Date(Date.now() - intervalMinutes * 60_000);
+  const sources = await db.source.findMany({
+    where: {
+      syncStatus: { not: "syncing" },
+      OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: cutoff } }],
+    },
+    select: { id: true },
+  });
+
+  let enqueued = 0;
+  for (const s of sources) {
+    const active = await db.processingJob.findFirst({
+      where: {
+        sourceId: s.id,
+        jobType: "source_sync",
+        status: { in: ["queued", "running"] },
+      },
+      select: { id: true },
+    });
+    if (active) continue;
+    await createProcessingJob({ sourceId: s.id, jobType: "source_sync" });
+    enqueued++;
+  }
+  return enqueued;
+}
+
 /** Pick the next queued job (pipeline-first), marked as running atomically. */
 export async function getNextQueuedJob(workerId: string) {
   const { getDb } = await import("./db");

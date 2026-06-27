@@ -78,6 +78,11 @@ export default function SettingsPage() {
           />
           <SettingRow label="Concurrency" value="1 job at a time" />
           <SettingRow
+            label="Auto-sync"
+            value="on — every ~6h"
+            hint="The worker re-checks each source on a schedule, ingests any newly-published videos, and re-queues backlog episodes until the whole channel is processed. No manual re-sync needed."
+          />
+          <SettingRow
             label="Overnight scheduler"
             value="off — not used"
             hint="The worker runs continuously, so the scheduled-window mode is disabled. Failed jobs are retried manually from the Processing Queue."

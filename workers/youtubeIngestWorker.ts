@@ -16,7 +16,7 @@ import {
 import {
   markJobCompleted,
   markJobFailed,
-  queueEpisodeProcessing,
+  queueEpisodeProcessingIfNeeded,
   updateJobProgress,
 } from "@/lib/queue";
 
@@ -74,11 +74,11 @@ export async function runSourceSyncJob(jobId: string, sourceId: string) {
         },
       });
 
-      // Enqueue the pipeline for newly-created episodes only.
-      if (ep.processingStatus === "queued" && !ep.audioFilePath) {
-        await queueEpisodeProcessing(ep.id);
-        added++;
-      }
+      // Enqueue the pipeline for any episode that still needs audio. This is
+      // idempotent (skips episodes already processed or in-flight), so each
+      // re-sync drains backlog stragglers and picks up newly-published videos.
+      const queued = await queueEpisodeProcessingIfNeeded(ep.id);
+      if (queued) added++;
 
       await updateJobProgress(
         jobId,
