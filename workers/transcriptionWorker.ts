@@ -11,7 +11,7 @@ import {
   segmentTranscript,
   type TranscriptSegment,
 } from "@/lib/transcription";
-import { shouldTryYouTubeCaptions } from "@/lib/transcriptionConfig";
+import { shouldTryRssFeedTranscript, shouldTryYouTubeCaptions } from "@/lib/transcriptionConfig";
 import {
   markJobFailed,
   updateJobProgress,
@@ -34,7 +34,11 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
     throw new Error(msg);
   }
   const captionsOnly = shouldTryYouTubeCaptions(ep.sourcePlatform);
-  if (!ep.audioFilePath && !captionsOnly) {
+  const feedTranscriptOnly = shouldTryRssFeedTranscript(
+    ep.transcriptOriginalUrl,
+    ep.sourcePlatform,
+  );
+  if (!ep.audioFilePath && !captionsOnly && !feedTranscriptOnly) {
     const msg = "audio_file_path is empty — run download first";
     await markJobFailed(jobId, msg);
     throw new Error(msg);
@@ -47,6 +51,7 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
       audioFilePath: ep.audioFilePath ?? "",
       sourceUrl: ep.sourceUrl,
       sourcePlatform: ep.sourcePlatform,
+      transcriptOriginalUrl: ep.transcriptOriginalUrl,
     });
     await updateJobProgress(jobId, 80);
 
@@ -109,6 +114,7 @@ export async function runSegmentationJob(jobId: string, episodeId: string) {
       (existing[0]?.transcriptSourceType as
         | "whisper_api"
         | "youtube_captions"
+        | "rss_feed"
         | "whisper_local"
         | "manual") ?? "whisper_api";
 

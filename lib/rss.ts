@@ -17,6 +17,7 @@ export type RssEpisode = {
   durationSeconds: number | null;
   thumbnailUrl: string | null;
   episodeNumber: number | null;
+  transcriptUrl: string | null;
 };
 
 export type RssFeed = {
@@ -69,6 +70,33 @@ function attrValue(block: string, tag: string, attr: string): string | null {
   );
   const m = block.match(re);
   return m ? decodeXmlEntities(m[1]!) : null;
+}
+
+/** Prefer WebVTT from podcast:transcript tags (Omny, Podcast Index). */
+function parseTranscriptUrl(itemXml: string): string | null {
+  const tags = itemXml.match(/<podcast:transcript\b[^>]*>/gi) ?? [];
+  const candidates = tags
+    .map((tag) => ({
+      url: attrValue(tag, "podcast:transcript", "url"),
+      type: (attrValue(tag, "podcast:transcript", "type") ?? "").toLowerCase(),
+    }))
+    .filter((t): t is { url: string; type: string } => Boolean(t.url));
+
+  const vtt = candidates.find(
+    (t) =>
+      t.type.includes("vtt") ||
+      t.url.toLowerCase().includes("webvtt") ||
+      t.url.toLowerCase().includes("format=vtt"),
+  );
+  if (vtt) return vtt.url;
+
+  const srt = candidates.find(
+    (t) =>
+      t.type.includes("srt") ||
+      t.url.toLowerCase().includes("subrip") ||
+      t.url.toLowerCase().includes("format=srt"),
+  );
+  return srt?.url ?? candidates[0]?.url ?? null;
 }
 
 function parseDuration(raw: string | null): number | null {
@@ -136,6 +164,7 @@ function parseEpisodeItem(itemXml: string): RssEpisode | null {
     thumbnailUrl:
       thumbnailUrl && !thumbnailUrl.endsWith(".mp3") ? thumbnailUrl : null,
     episodeNumber: Number.isFinite(episodeNumber) ? episodeNumber : null,
+    transcriptUrl: parseTranscriptUrl(itemXml),
   };
 }
 
@@ -238,6 +267,7 @@ export function buildRssEpisodeMetadata(episode: RssEpisode) {
     publishDate: episode.publishDate ? new Date(episode.publishDate) : null,
     durationSeconds: episode.durationSeconds,
     thumbnailOriginalUrl: episode.thumbnailUrl,
+    transcriptOriginalUrl: episode.transcriptUrl,
     episodeNumber: episode.episodeNumber,
   };
 }

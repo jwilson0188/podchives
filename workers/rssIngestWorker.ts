@@ -66,7 +66,7 @@ export async function runRssSourceSyncJob(jobId: string, sourceId: string) {
 
     let added = 0;
     let deferred = 0;
-    const { maxEpisodesQueuedPerSync } = getQueueLimits();
+    const { maxEpisodesQueuedPerSync } = getQueueLimits(source.sourceType);
     const items = feed.items;
 
     for (let i = 0; i < items.length; i++) {

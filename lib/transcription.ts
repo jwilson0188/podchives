@@ -16,8 +16,10 @@ import {
   getTranscriptionApiBackend,
   getTranscriptionBackend,
   getTranscriptionModel,
+  shouldTryRssFeedTranscript,
   shouldTryYouTubeCaptions,
 } from "./transcriptionConfig";
+import { transcribeFromRssFeed } from "./rssTranscripts";
 import { transcribeFromYouTubeCaptions } from "./youtubeCaptions";
 
 /** Stay under hosted Whisper upload limits (Groq ~25 MB, OpenAI 25 MB). */
@@ -41,6 +43,7 @@ export type TranscriptionResolveResult = TranscriptionResult & {
     | "whisper_local"
     | "whisper_api"
     | "youtube_captions"
+    | "rss_feed"
     | "manual";
 };
 
@@ -257,6 +260,7 @@ export async function resolveTranscription(args: {
   audioFilePath: string;
   sourceUrl: string;
   sourcePlatform: string;
+  transcriptOriginalUrl?: string | null;
 }): Promise<TranscriptionResolveResult> {
   const backend = getTranscriptionBackend();
 
@@ -270,7 +274,26 @@ export async function resolveTranscription(args: {
     } catch (err) {
       if (process.env.NODE_ENV !== "test") {
         console.warn(
-          `[transcription] YouTube captions unavailable for ${args.episodeId}, falling back to API:`,
+          `[transcription] YouTube captions unavailable for ${args.episodeId}, falling back:`,
+          (err as Error).message,
+        );
+      }
+    }
+  }
+
+  if (
+    shouldTryRssFeedTranscript(
+      args.transcriptOriginalUrl,
+      args.sourcePlatform,
+    )
+  ) {
+    try {
+      const fromFeed = await transcribeFromRssFeed(args.transcriptOriginalUrl!);
+      return { ...fromFeed, transcriptSourceType: "rss_feed" };
+    } catch (err) {
+      if (process.env.NODE_ENV !== "test") {
+        console.warn(
+          `[transcription] RSS feed transcript unavailable for ${args.episodeId}, falling back to API:`,
           (err as Error).message,
         );
       }
@@ -279,7 +302,7 @@ export async function resolveTranscription(args: {
 
   if (!args.audioFilePath) {
     throw new Error(
-      "No audio file for API transcription — captions unavailable and download may have failed",
+      "No audio file for API transcription — feed transcript/captions unavailable and download may have failed",
     );
   }
 
@@ -340,6 +363,7 @@ export async function saveTranscriptSegments(args: {
     | "whisper_local"
     | "whisper_api"
     | "youtube_captions"
+    | "rss_feed"
     | "manual";
   segments: TranscriptSegment[];
   replace?: boolean;
@@ -403,6 +427,7 @@ export async function transcribeEpisode(args: {
     audioFilePath: args.audioFilePath,
     sourceUrl: ep.sourceUrl,
     sourcePlatform: ep.sourcePlatform,
+    transcriptOriginalUrl: ep.transcriptOriginalUrl,
   });
   const packed = segmentTranscript(resolved);
 

@@ -152,6 +152,12 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
   const ep = await db.episode.findUnique({ where: { id: episodeId } });
   if (!ep) throw new Error(`Episode ${episodeId} not found`);
 
+  // Feed transcript available — skip the ~50 MB MP3 download entirely.
+  if (ep.transcriptOriginalUrl) {
+    await updateJobProgress(jobId, 100);
+    return;
+  }
+
   await updateJobStatus(jobId, "downloading", { progressPercent: 5 });
 
   const dl = await db.download.create({

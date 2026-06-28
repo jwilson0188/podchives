@@ -76,6 +76,7 @@ export const TRANSCRIPT_SOURCE_TYPES = [
   "whisper_local",
   "whisper_api",
   "youtube_captions",
+  "rss_feed",
   "manual",
 ] as const;
 export type TranscriptSourceType = (typeof TRANSCRIPT_SOURCE_TYPES)[number];

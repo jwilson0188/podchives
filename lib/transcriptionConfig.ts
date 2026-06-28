@@ -25,6 +25,16 @@ export function shouldTryYouTubeCaptions(
   );
 }
 
+export function shouldTryRssFeedTranscript(
+  transcriptOriginalUrl: string | null | undefined,
+  sourcePlatform: string,
+): boolean {
+  return (
+    sourcePlatform.toLowerCase() === "rss" &&
+    Boolean(transcriptOriginalUrl?.trim())
+  );
+}
+
 export function getTranscriptionApiBackend(
   backend: TranscriptionBackend = getTranscriptionBackend(),
 ): "groq" | "openai" {
