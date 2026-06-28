@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { IS_DEMO_MODE } from "@/lib/constants";
-import { createSource, detectYouTubeSourceType } from "@/lib/youtube";
+import { createSource } from "@/lib/youtube";
+import { detectSourceType } from "@/lib/sourceTypes";
 import { hasDatabase } from "@/lib/db";
 import { demoSources } from "@/lib/demoData";
 
 const BodySchema = z.object({
   sourceUrl: z.string().url(),
   sourceType: z
-    .enum(["youtube_channel", "youtube_playlist", "youtube_video"])
+    .enum([
+      "youtube_channel",
+      "youtube_playlist",
+      "youtube_video",
+      "rss",
+      "rss_future",
+    ])
     .optional(),
   podcastName: z.string().optional(),
+  podcastId: z.string().optional(),
 });
 
 export async function GET() {
@@ -38,8 +46,7 @@ export async function POST(req: Request) {
   }
 
   const { sourceUrl } = parsed.data;
-  const sourceType =
-    parsed.data.sourceType ?? detectYouTubeSourceType(sourceUrl);
+  const sourceType = parsed.data.sourceType ?? detectSourceType(sourceUrl);
 
   // In demo mode (or with no DB) we just acknowledge — no persistence.
   if (IS_DEMO_MODE || !hasDatabase()) {
@@ -60,6 +67,7 @@ export async function POST(req: Request) {
       sourceUrl,
       sourceType,
       sourceName: parsed.data.podcastName,
+      podcastId: parsed.data.podcastId,
     });
     return NextResponse.json({ ok: true, demo: false, source });
   } catch (err: any) {

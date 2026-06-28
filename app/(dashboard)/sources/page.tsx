@@ -14,7 +14,7 @@ export default async function SourcesPage() {
       <PageHeader
         eyebrow="archive // sources"
         title="Sources"
-        description="Connect YouTube channels, playlists, or single videos. RSS, manual upload, and Patreon are coming soon."
+        description="Connect YouTube channels, playlists, videos, or podcast RSS feeds. Manual upload and Patreon are coming soon."
       />
 
       <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-6">
@@ -34,11 +34,7 @@ export default async function SourcesPage() {
           <h2 className="text-sm font-semibold tracking-tight mb-3 text-text-muted uppercase tracking-widest text-[11px]">
             Coming soon
           </h2>
-          <div className="grid sm:grid-cols-3 gap-3">
-            <FutureSourceCard
-              title="RSS feed"
-              desc="Subscribe to any podcast RSS — Apple, Spotify, Substack."
-            />
+          <div className="grid sm:grid-cols-2 gap-3">
             <FutureSourceCard
               title="Manual upload"
               desc="Upload mp3/wav/mp4 files directly for transcription."

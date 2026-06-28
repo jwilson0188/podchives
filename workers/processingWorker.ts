@@ -16,7 +16,8 @@ import {
   updateJobProgress,
   updateJobStatus,
 } from "@/lib/queue";
-import { runSourceSyncJob } from "./youtubeIngestWorker";
+import { runSourceSyncJob } from "./sourceSyncWorker";
+import { downloadRssAudio } from "@/lib/rss";
 import {
   runSegmentationJob,
   runTranscriptionJob,
@@ -183,7 +184,10 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
   };
 
   try {
-    const audioPath = await downloadAudio(ep.id, ep.sourceUrl, reportProgress);
+    const audioPath =
+      ep.sourcePlatform === "rss"
+        ? await downloadRssAudio(ep.id, ep.sourceUrl, reportProgress)
+        : await downloadAudio(ep.id, ep.sourceUrl, reportProgress);
 
     // Record the real file size so the Usage page reports measured storage
     // instead of a bitrate estimate. Files are ephemeral; this number persists.

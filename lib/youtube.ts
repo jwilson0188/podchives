@@ -32,6 +32,7 @@ function resolveCookiesFile(): string | null {
 }
 
 import type { SourceType } from "./constants";
+import { detectSourceType, deriveNameFromRssUrl } from "./sourceTypes";
 import { slugify } from "./utils";
 import { downloadToFile, localPath, ensureStorageDirs } from "./storage";
 
@@ -293,25 +294,9 @@ function parseInfoLine(line: string): YouTubeVideo | null {
 
 /**
  * Detect the URL type. Mirrors the SOURCE_TYPES enum.
+ * @deprecated import from `@/lib/sourceTypes` instead.
  */
-export function detectYouTubeSourceType(url: string): SourceType {
-  try {
-    const u = new URL(url);
-    if (u.searchParams.get("list")) return "youtube_playlist";
-    if (u.pathname.startsWith("/playlist")) return "youtube_playlist";
-    if (
-      u.pathname.startsWith("/watch") ||
-      u.hostname.includes("youtu.be") ||
-      u.pathname.startsWith("/shorts/") ||
-      u.pathname.startsWith("/live/")
-    ) {
-      return "youtube_video";
-    }
-    return "youtube_channel";
-  } catch {
-    return "youtube_channel";
-  }
-}
+export { detectYouTubeSourceType } from "./sourceTypes";
 
 /**
  * Pull metadata for a single video. Used for /sources of type youtube_video
@@ -545,9 +530,12 @@ export async function createSource(args: CreateSourceArgs) {
   }
   const db = getDb();
 
-  const sourceType =
-    args.sourceType ?? detectYouTubeSourceType(args.sourceUrl);
-  const sourceName = args.sourceName ?? deriveNameFromUrl(args.sourceUrl);
+  const sourceType = args.sourceType ?? detectSourceType(args.sourceUrl);
+  const sourceName =
+    args.sourceName ??
+    (sourceType === "rss"
+      ? deriveNameFromRssUrl(args.sourceUrl)
+      : deriveNameFromUrl(args.sourceUrl));
   const slug = slugify(sourceName);
 
   let podcastId = args.podcastId;

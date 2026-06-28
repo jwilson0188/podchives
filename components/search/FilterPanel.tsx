@@ -131,9 +131,7 @@ function FilterFields({
           >
             <option value="all">All platforms</option>
             <option value="youtube">YouTube</option>
-            <option value="rss" disabled>
-              RSS (coming soon)
-            </option>
+            <option value="rss">RSS</option>
             <option value="manual" disabled>
               Manual upload (coming soon)
             </option>

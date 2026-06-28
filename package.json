@@ -18,6 +18,7 @@
     "worker": "tsx scripts/dev-worker.ts",
     "process-queue": "tsx scripts/process-queue.ts",
     "sync-source": "tsx scripts/sync-youtube-source.ts",
+    "sync-rss": "tsx scripts/sync-rss-source.ts",
     "recover-queue": "tsx scripts/recover-queue.ts"
   },
   "dependencies": {

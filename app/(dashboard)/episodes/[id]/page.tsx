@@ -17,6 +17,7 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   youtube_channel: "YouTube channel",
   youtube_playlist: "YouTube playlist",
   youtube_video: "YouTube video",
+  rss: "RSS feed",
   rss_future: "RSS feed",
   manual_upload_future: "Manual upload",
   patreon_future: "Patreon",

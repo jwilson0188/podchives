@@ -5,7 +5,7 @@
  *   tsx scripts/sync-youtube-source.ts <url> [--name "Show name"]
  */
 import { detectYouTubeSourceType } from "../lib/youtube";
-import { runSourceSyncJob } from "../workers/youtubeIngestWorker";
+import { runSourceSyncJob } from "../workers/sourceSyncWorker";
 import { createProcessingJob } from "../lib/queue";
 
 async function main() {

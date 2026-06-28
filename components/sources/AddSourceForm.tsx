@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 
-type SourceType = "youtube_channel" | "youtube_playlist" | "youtube_video";
+type SourceType =
+  | "youtube_channel"
+  | "youtube_playlist"
+  | "youtube_video"
+  | "rss";
 
 const TYPE_OPTIONS: { value: SourceType; label: string; hint: string }[] = [
   {
@@ -21,6 +25,11 @@ const TYPE_OPTIONS: { value: SourceType; label: string; hint: string }[] = [
     value: "youtube_video",
     label: "YouTube video",
     hint: "https://www.youtube.com/watch?v=VIDEO_ID",
+  },
+  {
+    value: "rss",
+    label: "RSS feed",
+    hint: "https://www.omnycontent.com/.../podcast.rss",
   },
 ];
 
@@ -73,14 +82,14 @@ export function AddSourceForm() {
       <div>
         <h2 className="font-semibold tracking-tight mb-1">Add a source</h2>
         <p className="text-xs text-text-muted">
-          Paste a YouTube URL. Episodes will be discovered, downloaded,
-          transcribed, and indexed automatically.
+          Paste a YouTube URL or podcast RSS feed. Episodes will be discovered,
+          downloaded, transcribed, and indexed automatically.
         </p>
       </div>
 
       <div>
         <label className="label">Source type</label>
-        <div className="grid sm:grid-cols-3 gap-2">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
           {TYPE_OPTIONS.map((opt) => {
             const active = sourceType === opt.value;
             return (
@@ -114,7 +123,7 @@ export function AddSourceForm() {
 
       <div>
         <label className="label" htmlFor="source-url">
-          YouTube URL
+          {sourceType === "rss" ? "RSS feed URL" : "YouTube URL"}
         </label>
         <input
           id="source-url"

@@ -39,6 +39,7 @@ export const SOURCE_TYPES = [
   "youtube_channel",
   "youtube_playlist",
   "youtube_video",
+  "rss",
   "rss_future",
   "manual_upload_future",
   "patreon_future",

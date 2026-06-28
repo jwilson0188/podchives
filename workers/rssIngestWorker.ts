@@ -1,20 +1,10 @@
 /**
- * YouTube ingestion worker.
- *
- * Handles `source_sync` jobs:
- *   1. Read source row.
- *   2. Run `syncYouTubeSource(url)` to discover videos.
- *   3. Upsert episodes into the DB.
- *   4. Enqueue the per-episode pipeline (thumbnail → download → transcribe → ...).
+ * RSS ingestion worker — handles `source_sync` for podcast RSS feeds.
  */
 import {
-  buildEpisodeMetadata,
-  syncYouTubeSource,
-  extractYouTubeMetadata,
-  detectYouTubeSourceType,
-  fetchYouTubeChannelProfile,
-  type YouTubeChannel,
-} from "@/lib/youtube";
+  buildRssEpisodeMetadata,
+  fetchRssFeed,
+} from "@/lib/rss";
 import {
   markJobCompleted,
   markJobFailed,
@@ -25,10 +15,12 @@ import {
 
 async function updatePodcastBranding(
   podcastId: string,
-  channel: Pick<
-    YouTubeChannel,
-    "channelName" | "thumbnailUrl" | "description" | "channelUrl"
-  >,
+  feed: {
+    title: string;
+    description: string | null;
+    imageUrl: string | null;
+    link: string | null;
+  },
 ) {
   const { getDb } = await import("@/lib/db");
   const db = getDb();
@@ -38,15 +30,15 @@ async function updatePodcastBranding(
     description?: string;
     officialUrl?: string;
   } = {};
-  if (channel.thumbnailUrl) data.coverImageUrl = channel.thumbnailUrl;
-  if (channel.channelName) data.name = channel.channelName;
-  if (channel.description) data.description = channel.description;
-  if (channel.channelUrl) data.officialUrl = channel.channelUrl;
+  if (feed.imageUrl) data.coverImageUrl = feed.imageUrl;
+  if (feed.title) data.name = feed.title;
+  if (feed.description) data.description = feed.description;
+  if (feed.link) data.officialUrl = feed.link;
   if (Object.keys(data).length === 0) return;
   await db.podcast.update({ where: { id: podcastId }, data });
 }
 
-export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
+export async function runRssSourceSyncJob(jobId: string, sourceId: string) {
   const { getDb } = await import("@/lib/db");
   const db = getDb();
 
@@ -69,43 +61,17 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
   });
 
   try {
-    const detected = detectYouTubeSourceType(source.sourceUrl);
-    let videos = [] as Awaited<ReturnType<typeof syncYouTubeSource>>["videos"];
-    let channelMeta: Pick<
-      YouTubeChannel,
-      "channelName" | "thumbnailUrl" | "description" | "channelUrl"
-    > | null = null;
-
-    if (detected === "youtube_video") {
-      const v = await extractYouTubeMetadata(source.sourceUrl);
-      videos = [v];
-      const channelUrl = v.channelId
-        ? `https://www.youtube.com/channel/${v.channelId}`
-        : source.sourceUrl;
-      try {
-        channelMeta = await fetchYouTubeChannelProfile(channelUrl);
-      } catch (err: any) {
-        console.warn(
-          `[source_sync] channel profile fetch failed for ${channelUrl}: ${err?.message ?? err}`,
-        );
-      }
-    } else {
-      const ch = await syncYouTubeSource(source.sourceUrl);
-      videos = ch.videos;
-      channelMeta = ch;
-    }
-
-    if (channelMeta) {
-      await updatePodcastBranding(source.podcastId, channelMeta);
-    }
+    const feed = await fetchRssFeed(source.sourceUrl);
+    await updatePodcastBranding(source.podcastId, feed);
 
     let added = 0;
     let deferred = 0;
     const { maxEpisodesQueuedPerSync } = getQueueLimits();
+    const items = feed.items;
 
-    for (let i = 0; i < videos.length; i++) {
-      const v = videos[i];
-      const meta = buildEpisodeMetadata(v);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      const meta = buildRssEpisodeMetadata(item);
 
       const ep = await db.episode.upsert({
         where: {
@@ -132,13 +98,13 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
 
       await updateJobProgress(
         jobId,
-        Math.round(((i + 1) / videos.length) * 100),
+        Math.round(((i + 1) / items.length) * 100),
       );
     }
 
     if (deferred > 0) {
       console.log(
-        `[source_sync] ${source.sourceName}: queued ${added} episode pipeline(s), deferred ${deferred} (backpressure — will drain on next sync)`,
+        `[source_sync:rss] ${source.sourceName}: queued ${added} episode pipeline(s), deferred ${deferred} (backpressure — will drain on next sync)`,
       );
     }
 
@@ -156,7 +122,7 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
     });
 
     await markJobCompleted(jobId);
-    return { episodesFound: videos.length, episodesQueued: added, deferred };
+    return { episodesFound: items.length, episodesQueued: added, deferred };
   } catch (err: any) {
     await db.sourceSyncJob.updateMany({
       where: { sourceId, status: "running" },
