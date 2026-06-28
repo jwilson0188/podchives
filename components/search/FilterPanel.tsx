@@ -1,66 +1,78 @@
 "use client";
 
-import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type { SearchMode } from "@/lib/search";
+import { readSearchUrlParams } from "@/lib/searchFilters";
 
 export type ArchiveOption = { id: string; name: string };
 
-export function FilterPanel({ archives = [] }: { archives?: ArchiveOption[] }) {
+export function FilterPanel({
+  archives = [],
+  showModeToggle = true,
+}: {
+  archives?: ArchiveOption[];
+  /** Hide mode toggle on Advanced Search — that page has its own mode picker. */
+  showModeToggle?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const url = readSearchUrlParams(searchParams);
 
-  const archive = searchParams.get("archive") ?? "all";
-  const [platform, setPlatform] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<string>("all");
-  const [searchableOnly, setSearchableOnly] = useState(true);
-
-  // The archive filter is URL-driven so the server component re-runs the
-  // search scoped to that archive. Other filters are cosmetic for now.
-  const setArchive = (next: string) => {
+  const setParams = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === "all") params.delete("archive");
-    else params.set("archive", next);
+    for (const [key, value] of Object.entries(updates)) {
+      if (!value || value === "all") params.delete(key);
+      else params.set(key, value);
+    }
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const reset = () => {
+    const q = searchParams.get("q");
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   };
 
   return (
     <>
-      {/* Mobile: collapsible filters */}
       <details className="lg:hidden card mb-4 group">
         <summary className="p-4 cursor-pointer list-none flex items-center justify-between font-semibold text-sm tracking-tight">
           <span>Filters</span>
           <span className="text-text-muted text-xs group-open:hidden">Show</span>
-          <span className="text-text-muted text-xs hidden group-open:inline">Hide</span>
+          <span className="text-text-muted text-xs hidden group-open:inline">
+            Hide
+          </span>
         </summary>
         <div className="px-4 pb-4 border-t border-border pt-4">
           <FilterFields
             archives={archives}
-            archive={archive}
-            setArchive={setArchive}
-            platform={platform}
-            setPlatform={setPlatform}
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            searchableOnly={searchableOnly}
-            setSearchableOnly={setSearchableOnly}
+            archive={url.archiveId ?? "all"}
+            platform={url.platform ?? "all"}
+            dateRange={url.dateRange ?? "all"}
+            mode={url.mode ?? "keyword"}
+            searchableOnly={url.searchableOnly !== false}
+            showModeToggle={showModeToggle}
+            setArchive={(v) => setParams({ archive: v })}
+            setPlatform={(v) => setParams({ platform: v })}
+            setDateRange={(v) => setParams({ range: v })}
+            setMode={(v) => setParams({ mode: v === "keyword" ? null : v })}
+            setSearchableOnly={(v) =>
+              setParams({ searchable: v ? null : "0" })
+            }
           />
         </div>
       </details>
 
-      {/* Desktop: sticky sidebar */}
       <aside className="hidden lg:block card p-4 sticky top-20">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold tracking-tight">Filters</h3>
           <button
             type="button"
-            onClick={() => {
-              setArchive("all");
-              setPlatform("all");
-              setDateRange("all");
-              setSearchableOnly(true);
-            }}
+            onClick={reset}
             className="text-[11px] text-text-muted hover:text-text-primary uppercase tracking-wider"
           >
             Reset
@@ -68,14 +80,17 @@ export function FilterPanel({ archives = [] }: { archives?: ArchiveOption[] }) {
         </div>
         <FilterFields
           archives={archives}
-          archive={archive}
-          setArchive={setArchive}
-          platform={platform}
-          setPlatform={setPlatform}
-          dateRange={dateRange}
-          setDateRange={setDateRange}
-          searchableOnly={searchableOnly}
-          setSearchableOnly={setSearchableOnly}
+          archive={url.archiveId ?? "all"}
+          platform={url.platform ?? "all"}
+          dateRange={url.dateRange ?? "all"}
+          mode={url.mode ?? "keyword"}
+          searchableOnly={url.searchableOnly !== false}
+          showModeToggle={showModeToggle}
+          setArchive={(v) => setParams({ archive: v })}
+          setPlatform={(v) => setParams({ platform: v })}
+          setDateRange={(v) => setParams({ range: v })}
+          setMode={(v) => setParams({ mode: v === "keyword" ? null : v })}
+          setSearchableOnly={(v) => setParams({ searchable: v ? null : "0" })}
         />
       </aside>
     </>
@@ -85,24 +100,36 @@ export function FilterPanel({ archives = [] }: { archives?: ArchiveOption[] }) {
 function FilterFields({
   archives,
   archive,
-  setArchive,
   platform,
-  setPlatform,
   dateRange,
-  setDateRange,
+  mode,
   searchableOnly,
+  showModeToggle,
+  setArchive,
+  setPlatform,
+  setDateRange,
+  setMode,
   setSearchableOnly,
 }: {
   archives: ArchiveOption[];
   archive: string;
-  setArchive: (v: string) => void;
   platform: string;
-  setPlatform: (v: string) => void;
   dateRange: string;
-  setDateRange: (v: string) => void;
+  mode: SearchMode;
   searchableOnly: boolean;
+  showModeToggle: boolean;
+  setArchive: (v: string) => void;
+  setPlatform: (v: string) => void;
+  setDateRange: (v: string) => void;
+  setMode: (v: SearchMode) => void;
   setSearchableOnly: (v: boolean) => void;
 }) {
+  const modes: { id: SearchMode; label: string }[] = [
+    { id: "keyword", label: "Keyword" },
+    { id: "semantic", label: "Semantic" },
+    { id: "hybrid", label: "Hybrid" },
+  ];
+
   return (
     <>
       <div className="space-y-4">
@@ -160,33 +187,34 @@ function FilterFields({
             onChange={(e) => setSearchableOnly(e.target.checked)}
             className="w-4 h-4 accent-accent"
           />
-          <span className="text-text-muted">
-            Searchable episodes only
-          </span>
+          <span className="text-text-muted">Searchable episodes only</span>
         </label>
       </div>
 
-      <div className="mt-5 pt-4 border-t border-border">
-        <div className="text-[10px] uppercase tracking-widest text-text-muted mb-2">
-          Search type
+      {showModeToggle && (
+        <div className="mt-5 pt-4 border-t border-border">
+          <div className="text-[10px] uppercase tracking-widest text-text-muted mb-2">
+            Search type
+          </div>
+          <div className="grid grid-cols-3 gap-1 p-1 bg-bg-subtle rounded-md border border-border">
+            {modes.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setMode(m.id)}
+                className={
+                  "text-xs py-1.5 rounded font-medium transition-colors " +
+                  (mode === m.id
+                    ? "bg-accent text-white"
+                    : "text-text-muted hover:text-text-primary")
+                }
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-1 p-1 bg-bg-subtle rounded-md border border-border">
-          <button
-            type="button"
-            className="text-xs py-1.5 rounded bg-accent text-white font-medium"
-          >
-            Keyword
-          </button>
-          <button
-            type="button"
-            disabled
-            className="text-xs py-1.5 rounded text-text-muted cursor-not-allowed"
-            title="Semantic search ships in Phase 5"
-          >
-            Semantic (soon)
-          </button>
-        </div>
-      </div>
+      )}
     </>
   );
 }

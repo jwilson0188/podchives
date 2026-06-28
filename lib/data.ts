@@ -1452,16 +1452,22 @@ async function getLatestSearchableClip(): Promise<FeaturedClip | null> {
 
 export async function runSearch(
   query: string,
-  filters: { archiveId?: string; limit?: number } = {},
+  filters: import("./search").SearchFilters = {},
+  mode: import("./search").SearchMode = "keyword",
 ): Promise<SearchResultView[]> {
   if (useDemoData()) return query ? searchDemo(query) : [];
-  // Real-mode search lives in lib/search.ts so it can be reused by API
-  // routes and tests. Import lazily to avoid pulling pgvector helpers
-  // into demo-only environments. The `await` inside try is critical —
-  // returning an un-awaited promise lets rejections escape the catch.
   try {
-    const { keywordSearch } = await import("./search");
-    return await keywordSearch(query, filters);
+    const { keywordSearch, semanticSearch, hybridSearch } = await import(
+      "./search"
+    );
+    switch (mode) {
+      case "semantic":
+        return await semanticSearch(query, filters);
+      case "hybrid":
+        return await hybridSearch(query, filters);
+      default:
+        return await keywordSearch(query, filters);
+    }
   } catch (err) {
     logError("runSearch", err);
     return [];
