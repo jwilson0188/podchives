@@ -23,8 +23,12 @@ function resolveCookiesFile(): string | null {
   if (!src || !fs.existsSync(src)) return null;
   const writable = path.join(os.tmpdir(), "podchives-cookies.txt");
   try {
-    // Copy once per container; let yt-dlp refresh the writable copy after that.
-    if (!fs.existsSync(writable)) fs.copyFileSync(src, writable);
+    const srcMtime = fs.statSync(src).mtimeMs;
+    const writableExists = fs.existsSync(writable);
+    const writableStale =
+      !writableExists ||
+      fs.statSync(writable).mtimeMs < srcMtime;
+    if (writableStale) fs.copyFileSync(src, writable);
     return writable;
   } catch {
     return src;

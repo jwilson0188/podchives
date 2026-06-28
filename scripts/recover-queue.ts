@@ -6,6 +6,7 @@
  *   npx tsx scripts/recover-queue.ts --reset      # fix bogus episode flags + cancel junk jobs
  *   npx tsx scripts/recover-queue.ts --queue 1    # re-queue download for 1 episode (test)
  *   npx tsx scripts/recover-queue.ts --queue 5    # re-queue download for 5 episodes
+ *   npx tsx scripts/recover-queue.ts --queue all  # queue download for every episode missing audio
  *
  * BEFORE running --queue:
  *   1. Fix YouTube cookies in .env (YOUTUBE_COOKIES_FROM_BROWSER=chrome or YOUTUBE_COOKIES_FILE)
@@ -17,8 +18,14 @@ async function main() {
   const args = process.argv.slice(2);
   const doReset = args.includes("--reset");
   const queueIdx = args.indexOf("--queue");
+  const queueArg = queueIdx >= 0 ? (args[queueIdx + 1] ?? "1") : "";
+  const queueAll = queueArg.toLowerCase() === "all";
   const queueLimit =
-    queueIdx >= 0 ? Math.max(1, parseInt(args[queueIdx + 1] ?? "1", 10) || 1) : 0;
+    queueIdx >= 0 && !queueAll
+      ? Math.max(1, parseInt(queueArg, 10) || 1)
+      : queueAll
+        ? 0
+        : 0;
 
   const { hasDatabase, getDb } = await import("../lib/db");
   if (!hasDatabase()) {
@@ -62,7 +69,21 @@ async function main() {
     console.log(`  ${row.jobType.padEnd(24)} ${row._count}`);
   }
 
-  if (!doReset && queueLimit === 0) {
+  const cookiesFile = process.env.YOUTUBE_COOKIES_FILE;
+  const cookiesBrowser = process.env.YOUTUBE_COOKIES_FROM_BROWSER;
+  console.log("\n── YouTube cookies ──");
+  if (cookiesFile) {
+    const { existsSync } = await import("fs");
+    console.log(
+      `  YOUTUBE_COOKIES_FILE=${cookiesFile} (${existsSync(cookiesFile) ? "found" : "MISSING"})`,
+    );
+  } else if (cookiesBrowser) {
+    console.log(`  YOUTUBE_COOKIES_FROM_BROWSER=${cookiesBrowser}`);
+  } else {
+    console.log("  ⚠ No cookies configured — downloads will likely fail with bot check");
+  }
+
+  if (!doReset && queueLimit === 0 && !queueAll) {
     console.log("\nNext steps:");
     console.log("  1. Fix cookies in .env, restart worker");
     console.log("  2. npx tsx scripts/recover-queue.ts --reset");
@@ -84,7 +105,7 @@ async function main() {
         isEmbedded: false,
         transcriptStatus: "queued",
         embeddingStatus: "queued",
-        processingStatus: "failed",
+        processingStatus: "queued",
       },
     });
     console.log(`  Reset ${epReset.count} episodes (no audio)`);
@@ -169,15 +190,66 @@ async function main() {
       },
     });
     console.log(`  Cleared ${clearQueuedDownstream.count} queued downstream jobs (no audio yet)`);
+
+    const missingDownload = await db.episode.findMany({
+      where: {
+        audioFilePath: null,
+        processingJobs: {
+          none: {
+            jobType: "download",
+            status: { in: ["queued", "running", "downloading", "failed"] },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (missingDownload.length > 0) {
+      const { createProcessingJob } = await import("../lib/queue");
+      for (const ep of missingDownload) {
+        await createProcessingJob({ episodeId: ep.id, jobType: "download" });
+      }
+      console.log(
+        `  Created ${missingDownload.length} missing download jobs`,
+      );
+    }
+
+    const { enqueueNextPipelineJob } = await import("../lib/queue");
+    const stalledWithAudio = await db.episode.findMany({
+      where: {
+        audioFilePath: { not: null },
+        isSearchable: false,
+        processingJobs: {
+          none: {
+            status: { in: ["queued", ...["running", "downloading", "transcribing", "segmenting", "embedding", "indexing", "extracting_audio"]] },
+          },
+        },
+      },
+      select: { id: true, episodeTitle: true },
+    });
+    let requeuedPipeline = 0;
+    for (const ep of stalledWithAudio) {
+      const lastDownload = await db.processingJob.findFirst({
+        where: { episodeId: ep.id, jobType: "download", status: "completed", errorMessage: null },
+        orderBy: { completedAt: "desc" },
+      });
+      if (lastDownload && (await enqueueNextPipelineJob(ep.id, "download"))) {
+        requeuedPipeline++;
+      }
+    }
+    if (requeuedPipeline > 0) {
+      console.log(
+        `  Re-queued downstream pipeline for ${requeuedPipeline} episode(s) with audio`,
+      );
+    }
   }
 
-  if (queueLimit > 0) {
+  if (queueLimit > 0 || queueAll) {
     const { createProcessingJob } = await import("../lib/queue");
 
     const episodes = await db.episode.findMany({
       where: { audioFilePath: null },
       orderBy: { publishDate: "desc" },
-      take: queueLimit,
+      ...(queueAll ? {} : { take: queueLimit }),
       select: { id: true, episodeTitle: true },
     });
 
