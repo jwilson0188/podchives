@@ -91,6 +91,7 @@ model Episode {
   durationSeconds      Int?     @map("duration_seconds")
   thumbnailOriginalUrl String?  @map("thumbnail_original_url")
   thumbnailLocalPath   String?  @map("thumbnail_local_path")
+  transcriptOriginalUrl String? @map("transcript_original_url") // podcast RSS feed transcript (WebVTT/SRT)
   rawFilePath          String?  @map("raw_file_path")
   audioFilePath        String?  @map("audio_file_path")
   audioBytes           Int      @default(0) @map("audio_bytes") // measured at download

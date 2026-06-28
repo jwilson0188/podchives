@@ -66,10 +66,14 @@ async function resolveFirstPipelineJob(episodeId: string): Promise<JobType> {
     select: {
       thumbnailOriginalUrl: true,
       thumbnailLocalPath: true,
+      transcriptOriginalUrl: true,
     },
   });
   if (ep?.thumbnailOriginalUrl && !ep.thumbnailLocalPath) {
     return "thumbnail_cache";
+  }
+  if (ep?.transcriptOriginalUrl) {
+    return "transcription";
   }
   return "download";
 }
@@ -94,6 +98,7 @@ export async function enqueueNextPipelineJob(
         thumbnailLocalPath: true,
         audioFilePath: true,
         sourcePlatform: true,
+        transcriptOriginalUrl: true,
       },
     });
     if (!ep) return false;
@@ -104,6 +109,15 @@ export async function enqueueNextPipelineJob(
     ) {
       completedJobType = "thumbnail_cache";
       next = getNextPipelineStep("thumbnail_cache");
+      continue;
+    }
+
+    if (
+      (next === "download" || next === "audio_extract") &&
+      ep.transcriptOriginalUrl
+    ) {
+      completedJobType = next;
+      next = getNextPipelineStep(next);
       continue;
     }
 
@@ -165,19 +179,35 @@ export const INFLIGHT_STATUSES = [
   "extracting_audio",
 ] as const;
 
-export function getQueueLimits() {
+export function getQueueLimits(sourceType?: string) {
+  const isRss = sourceType === "rss" || sourceType === "rss_future";
   return {
     maxQueuedEpisodesPerSource: Math.max(
       1,
-      Number(process.env.MAX_QUEUED_EPISODES_PER_SOURCE) || 25,
+      Number(
+        isRss
+          ? process.env.MAX_QUEUED_EPISODES_PER_SOURCE_RSS ||
+              process.env.MAX_QUEUED_EPISODES_PER_SOURCE
+          : process.env.MAX_QUEUED_EPISODES_PER_SOURCE,
+      ) || (isRss ? 75 : 50),
     ),
     maxInflightEpisodesPerSource: Math.max(
       1,
-      Number(process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE) || 8,
+      Number(
+        isRss
+          ? process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE_RSS ||
+              process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE
+          : process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE,
+      ) || (isRss ? 20 : 15),
     ),
     maxEpisodesQueuedPerSync: Math.max(
       1,
-      Number(process.env.MAX_EPISODES_QUEUED_PER_SYNC) || 20,
+      Number(
+        isRss
+          ? process.env.MAX_EPISODES_QUEUED_PER_SYNC_RSS ||
+              process.env.MAX_EPISODES_QUEUED_PER_SYNC
+          : process.env.MAX_EPISODES_QUEUED_PER_SYNC,
+      ) || (isRss ? 100 : 50),
     ),
   };
 }
@@ -185,9 +215,15 @@ export function getQueueLimits() {
 async function countSourcePipelinePressure(sourceId: string): Promise<{
   queuedPipelines: number;
   inflight: number;
+  sourceType: string;
 }> {
   const { getDb } = await import("./db");
   const db = getDb();
+
+  const source = await db.source.findUnique({
+    where: { id: sourceId },
+    select: { sourceType: true },
+  });
 
   const base = {
     episode: { sourceId },
@@ -211,15 +247,16 @@ async function countSourcePipelinePressure(sourceId: string): Promise<{
   return {
     queuedPipelines: queuedRows.length,
     inflight: inflightRows.length,
+    sourceType: source?.sourceType ?? "",
   };
 }
 
 export async function canQueueEpisodeForSource(
   sourceId: string,
 ): Promise<boolean> {
-  const limits = getQueueLimits();
-  const { queuedPipelines, inflight } =
+  const { queuedPipelines, inflight, sourceType } =
     await countSourcePipelinePressure(sourceId);
+  const limits = getQueueLimits(sourceType);
   return (
     queuedPipelines < limits.maxQueuedEpisodesPerSource &&
     inflight < limits.maxInflightEpisodesPerSource
