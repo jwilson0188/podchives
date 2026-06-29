@@ -1,7 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { buildSearchQueryString } from "@/lib/searchFilters";
 
 export function GlobalSearchBar({
   size = "md",
@@ -17,15 +18,27 @@ export function GlobalSearchBar({
   archiveId?: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [q, setQ] = useState(defaultValue);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const query = q.trim();
     if (!query) return;
-    const params = new URLSearchParams({ q: query });
-    if (archiveId && archiveId !== "all") params.set("archive", archiveId);
-    router.push(`/search?${params.toString()}`);
+
+    const qs = buildSearchQueryString({
+      q: query,
+      archiveId: archiveId ?? searchParams.get("archive") ?? undefined,
+      platform: searchParams.get("platform") ?? undefined,
+      dateRange: searchParams.get("range") ?? undefined,
+      mode:
+        searchParams.get("mode") === "semantic" ||
+        searchParams.get("mode") === "hybrid"
+          ? (searchParams.get("mode") as "semantic" | "hybrid")
+          : undefined,
+      searchableOnly: searchParams.get("searchable") !== "0",
+    });
+    router.push(`/search?${qs}`);
   };
 
   const isLg = size === "lg";
@@ -33,11 +46,7 @@ export function GlobalSearchBar({
   return (
     <form
       onSubmit={onSubmit}
-      className={
-        isLg
-          ? "relative w-full"
-          : "relative w-full max-w-xl"
-      }
+      className={isLg ? "relative w-full" : "relative w-full max-w-xl"}
     >
       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
         <svg

@@ -135,7 +135,10 @@ export async function enqueueNextPipelineJob(
       where: {
         episodeId,
         jobType: next,
-        status: { in: ["queued", ...INFLIGHT_STATUSES, "completed"] },
+        OR: [
+          { status: { in: ["queued", ...INFLIGHT_STATUSES] } },
+          { status: "completed", errorMessage: null },
+        ],
       },
       select: { id: true },
     });
@@ -455,12 +458,12 @@ export async function getNextQueuedJob(workerId: string) {
       ORDER BY
         CASE job_type
           WHEN 'source_sync' THEN 0
-          WHEN 'download' THEN 1
-          WHEN 'audio_extract' THEN 2
-          WHEN 'transcription' THEN 3
-          WHEN 'transcript_segmentation' THEN 4
-          WHEN 'embedding' THEN 5
-          WHEN 'indexing' THEN 6
+          WHEN 'indexing' THEN 1
+          WHEN 'embedding' THEN 2
+          WHEN 'transcript_segmentation' THEN 3
+          WHEN 'transcription' THEN 4
+          WHEN 'audio_extract' THEN 5
+          WHEN 'download' THEN 6
           WHEN 'thumbnail_cache' THEN 99
           ELSE 50
         END,
@@ -520,6 +523,36 @@ export async function markJobCompleted(jobId: string) {
   });
 }
 
+/** Cancel queued downstream pipeline jobs when an earlier step fails or stalls. */
+export async function cancelOrphanedDownstreamJobs(
+  episodeId: string,
+  reason: string,
+) {
+  const { getDb } = await import("./db");
+  const db = getDb();
+  return db.processingJob.updateMany({
+    where: {
+      episodeId,
+      status: "queued",
+      jobType: {
+        in: [
+          "audio_extract",
+          "transcription",
+          "transcript_segmentation",
+          "embedding",
+          "indexing",
+        ],
+      },
+    },
+    data: {
+      status: "completed",
+      progressPercent: 0,
+      errorMessage: reason,
+      completedAt: new Date(),
+    },
+  });
+}
+
 export async function markJobFailed(jobId: string, errorMessage: string) {
   const { getDb } = await import("./db");
   const db = getDb();
@@ -538,20 +571,11 @@ export async function markJobFailed(jobId: string, errorMessage: string) {
     },
   });
 
-  // Drop orphaned downstream steps so failures don't cascade as noise.
   if (job?.episodeId && isPipelineJobType(job.jobType)) {
-    await db.processingJob.updateMany({
-      where: {
-        episodeId: job.episodeId,
-        status: "queued",
-        jobType: { in: EPISODE_PIPELINE as string[] },
-      },
-      data: {
-        status: "failed",
-        errorMessage: `skipped: ${job.jobType} failed`,
-        completedAt: new Date(),
-      },
-    });
+    await cancelOrphanedDownstreamJobs(
+      job.episodeId,
+      `cancelled: ${job.jobType} failed`,
+    );
   }
 }
 

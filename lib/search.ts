@@ -12,6 +12,7 @@
  */
 import { IS_DEMO_MODE } from "./constants";
 import { searchDemo, type DemoSearchResult } from "./demoData";
+import { buildFilterSql } from "./searchFilters";
 import { resolveThumbnailUrl } from "./utils";
 
 export type SearchFilters = {
@@ -22,6 +23,8 @@ export type SearchFilters = {
   searchableOnly?: boolean;
   limit?: number;
 };
+
+export type SearchMode = "keyword" | "semantic" | "hybrid";
 
 export type SearchResult = DemoSearchResult;
 
@@ -39,6 +42,7 @@ export async function keywordSearch(
   const { getDb } = await import("./db");
   const db = getDb();
   const limit = filters.limit ?? 50;
+  const { sql: filterSql, params: filterParams } = buildFilterSql(filters, 1);
 
   const rows = await db.$queryRawUnsafe<any[]>(
     `
@@ -67,11 +71,12 @@ export async function keywordSearch(
     JOIN podcasts p ON p.id = ts.podcast_id
     WHERE
       to_tsvector('english', ts.transcript_text) @@ websearch_to_tsquery('english', $1)
-      ${filters.archiveId ? "AND ts.podcast_id = $2" : ""}
+      ${filterSql}
     ORDER BY rank DESC, ts.start_time_seconds ASC
     LIMIT ${Number(limit) | 0}
     `,
-    ...[query, filters.archiveId].filter(Boolean),
+    query,
+    ...filterParams,
   );
 
   return rows.map((r) => ({
@@ -121,6 +126,7 @@ export async function semanticSearch(
   const { getDb } = await import("./db");
   const db = getDb();
   const limit = filters.limit ?? 50;
+  const { sql: filterSql, params: filterParams } = buildFilterSql(filters, 1);
 
   const rows = await db.$queryRawUnsafe<any[]>(
     `
@@ -145,11 +151,12 @@ export async function semanticSearch(
     JOIN episodes e ON e.id = ts.episode_id
     JOIN podcasts p ON p.id = ts.podcast_id
     WHERE ts.transcript_embedding IS NOT NULL
-      ${filters.archiveId ? "AND ts.podcast_id = $2" : ""}
+      ${filterSql}
     ORDER BY ts.transcript_embedding <=> $1::vector ASC
     LIMIT ${Number(limit) | 0}
     `,
-    ...[vec, filters.archiveId].filter(Boolean),
+    vec,
+    ...filterParams,
   );
 
   return rows.map((r) => ({

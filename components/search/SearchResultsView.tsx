@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import type { ArchiveOption } from "@/components/search/FilterPanel";
 import type { SearchResultView } from "@/lib/data";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { readSearchUrlParams } from "@/lib/searchFilters";
 import {
   getCachedSearch,
   searchCacheKey,
@@ -20,15 +21,24 @@ export function SearchResultsView({
 }) {
   const searchParams = useSearchParams();
   const query = (searchParams.get("q") ?? "").trim();
-  const archiveId = searchParams.get("archive") ?? undefined;
+  const url = readSearchUrlParams(searchParams);
 
   const cacheKey = useMemo(
-    () => (query ? searchCacheKey(query, archiveId) : ""),
-    [query, archiveId],
+    () =>
+      query
+        ? searchCacheKey(query, {
+            archive: url.archiveId,
+            platform: url.platform,
+            range: url.dateRange,
+            mode: url.mode,
+            searchableOnly: url.searchableOnly,
+          })
+        : "",
+    [query, url],
   );
 
-  const archiveName = archiveId
-    ? archives.find((a) => a.id === archiveId)?.name
+  const archiveName = url.archiveId
+    ? archives.find((a) => a.id === url.archiveId)?.name
     : undefined;
 
   const [results, setResults] = useState<SearchResultView[]>(() => {
@@ -49,14 +59,17 @@ export function SearchResultsView({
     const cached = getCachedSearch(cacheKey);
     if (cached) {
       setResults(cached);
-      return;
     }
 
     let cancelled = false;
     setRefreshing(true);
 
     const qs = new URLSearchParams({ q: query });
-    if (archiveId) qs.set("archive", archiveId);
+    if (url.archiveId) qs.set("archive", url.archiveId);
+    if (url.platform && url.platform !== "all") qs.set("platform", url.platform);
+    if (url.dateRange && url.dateRange !== "all") qs.set("range", url.dateRange);
+    if (url.mode && url.mode !== "keyword") qs.set("mode", url.mode);
+    if (url.searchableOnly === false) qs.set("searchable", "0");
 
     fetch(`/api/search?${qs}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -75,7 +88,13 @@ export function SearchResultsView({
     return () => {
       cancelled = true;
     };
-  }, [query, archiveId, cacheKey]);
+  }, [query, cacheKey, url]);
+
+  const filterBits: string[] = [];
+  if (archiveName) filterBits.push(archiveName);
+  if (url.platform && url.platform !== "all") filterBits.push(url.platform);
+  if (url.dateRange && url.dateRange !== "all") filterBits.push(url.dateRange);
+  if (url.mode && url.mode !== "keyword") filterBits.push(url.mode);
 
   return (
     <div className="space-y-3 min-w-0">
@@ -85,11 +104,11 @@ export function SearchResultsView({
           <span className="text-text-primary">&ldquo;{query}&rdquo;</span>{" "}
           <span className="text-text-dim">·</span> {results.length} match
           {results.length === 1 ? "" : "es"}
-          {archiveName && (
+          {filterBits.length > 0 && (
             <>
               {" "}
-              <span className="text-text-dim">in</span>{" "}
-              <span className="text-cyan">{archiveName}</span>
+              <span className="text-text-dim">·</span>{" "}
+              <span className="text-cyan">{filterBits.join(" · ")}</span>
             </>
           )}
           {refreshing && results.length > 0 && (
@@ -101,7 +120,7 @@ export function SearchResultsView({
       {results.length === 0 && query && !refreshing && (
         <EmptyState
           title={`No matches for "${query}"`}
-          description="Try a different phrase, fewer words, or remove filters. Semantic search ships next."
+          description="Try hybrid mode, a broader date range, or remove filters."
         />
       )}
 

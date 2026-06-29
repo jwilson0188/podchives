@@ -1,4 +1,5 @@
 import type { SearchResultView } from "@/lib/data";
+import type { SearchMode } from "@/lib/search";
 import { readSessionJson, writeSessionJson } from "@/lib/sessionStore";
 
 type CacheEntry = {
@@ -10,8 +11,24 @@ const memory = new Map<string, CacheEntry>();
 
 export const SEARCH_CACHE_TTL_MS = 10 * 60 * 1000;
 
-export function searchCacheKey(q: string, archive?: string): string {
-  return `${q}|${archive ?? ""}`;
+export function searchCacheKey(
+  q: string,
+  opts: {
+    archive?: string;
+    platform?: string;
+    range?: string;
+    mode?: SearchMode;
+    searchableOnly?: boolean;
+  } = {},
+): string {
+  return [
+    q,
+    opts.archive ?? "",
+    opts.platform ?? "all",
+    opts.range ?? "all",
+    opts.mode ?? "keyword",
+    opts.searchableOnly === false ? "0" : "1",
+  ].join("|");
 }
 
 function sessionKey(key: string): string {
@@ -30,7 +47,7 @@ export function getCachedSearch(key: string): SearchResultView[] | null {
     return stored.results;
   }
 
-  return memory.get(key)?.results ?? stored?.results ?? null;
+  return mem?.results ?? stored?.results ?? null;
 }
 
 export function setCachedSearch(

@@ -80,13 +80,17 @@ async function main() {
     },
   });
 
-  for (const jobType of steps) {
+  const stepsToQueue =
+    from === "download" ? (steps.slice(0, 1) as JobType[]) : steps;
+
+  for (const jobType of stepsToQueue) {
     const existing = await db.processingJob.findFirst({
       where: {
         episodeId: ep.id,
         jobType,
         status: {
           in: [
+            "queued",
             "running",
             "downloading",
             "transcribing",
