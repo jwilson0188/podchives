@@ -15,7 +15,10 @@ import {
   isAudioFilePath,
   isPipelineJobType,
 } from "./pipeline";
-import { shouldSkipYouTubeAudioDownload } from "./transcriptionConfig";
+import {
+  shouldSkipYouTubeAudioDownload,
+  shouldTryYouTubeCaptions,
+} from "./transcriptionConfig";
 
 export type ProcessingJob = {
   id: string;
@@ -345,6 +348,56 @@ export async function queueEpisodeProcessingIfNeeded(
 }
 
 /**
+ * Last-resort recovery for an episode whose transcript sources all failed.
+ *
+ * Caption-backed and feed-transcript episodes deliberately skip the audio
+ * download, so when those sources turn out to be unavailable there is nothing
+ * for Whisper to work with and the episode would otherwise be dead. Queue a
+ * real download so the paid path can take over.
+ *
+ * Only skips when a download is already pending — a *completed* download job
+ * is not proof of audio, because the fast-path completes without fetching
+ * anything. Returns true if a job was created.
+ */
+export async function queueAudioFallbackDownload(
+  episodeId: string,
+): Promise<boolean> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+
+  const pending = await db.processingJob.findFirst({
+    where: {
+      episodeId,
+      jobType: "download",
+      status: { in: ["queued", ...INFLIGHT_STATUSES] },
+    },
+    select: { id: true },
+  });
+  if (pending) return false;
+
+  await createProcessingJob({ episodeId, jobType: "download" });
+  return true;
+}
+
+/**
+ * Has transcription already failed for this episode? The download fast-path
+ * consults this: skipping the fetch is only safe while a transcript source
+ * still looks viable. Without it, the fallback download would no-op and the
+ * episode would ping-pong between `download` and `transcription` forever.
+ */
+export async function hasFailedTranscription(
+  episodeId: string,
+): Promise<boolean> {
+  const { getDb } = await import("./db");
+  const db = getDb();
+  const failed = await db.processingJob.findFirst({
+    where: { episodeId, jobType: "transcription", status: "failed" },
+    select: { id: true },
+  });
+  return failed !== null;
+}
+
+/**
  * Enqueue a `source_sync` job for every source whose last sync is older than
  * `intervalMinutes` (or never synced) and has no in-flight sync. Drives both
  * backlog draining and automatic discovery of newly-published videos.
@@ -447,6 +500,15 @@ export async function stopSourceSync(sourceId: string): Promise<{
 export async function getNextQueuedJob(workerId: string) {
   const { getDb } = await import("./db");
   const db = getDb();
+
+  // Transcription doesn't always need audio: YouTube captions and RSS feed
+  // transcripts are fetched from the network, and the pipeline deliberately
+  // skips the download for those. This predicate must mirror what
+  // runTranscriptionJob actually accepts (see workers/transcriptionWorker.ts) —
+  // if it's stricter, those jobs sit in `queued` forever and the per-source
+  // backpressure counter wedges the whole source.
+  const captionsBackend = shouldTryYouTubeCaptions("youtube");
+
   const [row] = await db.$queryRawUnsafe<any[]>(
     `
     UPDATE processing_jobs
@@ -462,7 +524,17 @@ export async function getNextQueuedJob(workerId: string) {
             WHERE e.id = pj.episode_id
               AND (
                 (pj.job_type = 'audio_extract' AND e.audio_file_path IS NOT NULL)
-                OR (pj.job_type = 'transcription' AND e.audio_file_path IS NOT NULL)
+                OR (
+                  pj.job_type = 'transcription'
+                  AND (
+                    e.audio_file_path IS NOT NULL
+                    OR ($2::boolean AND lower(e.source_platform) = 'youtube')
+                    OR (
+                      lower(e.source_platform) = 'rss'
+                      AND btrim(coalesce(e.transcript_original_url, '')) <> ''
+                    )
+                  )
+                )
                 OR (pj.job_type = 'transcript_segmentation' AND e.is_transcribed = true)
                 OR (pj.job_type = 'embedding' AND e.is_transcribed = true)
                 OR (pj.job_type = 'indexing' AND e.is_embedded = true)
@@ -488,6 +560,7 @@ export async function getNextQueuedJob(workerId: string) {
     RETURNING *
     `,
     workerId,
+    captionsBackend,
   );
   return row ?? null;
 }
