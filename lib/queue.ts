@@ -15,6 +15,7 @@ import {
   isAudioFilePath,
   isPipelineJobType,
 } from "./pipeline";
+import { shouldSkipYouTubeAudioDownload } from "./transcriptionConfig";
 
 export type ProcessingJob = {
   id: string;
@@ -67,12 +68,16 @@ async function resolveFirstPipelineJob(episodeId: string): Promise<JobType> {
       thumbnailOriginalUrl: true,
       thumbnailLocalPath: true,
       transcriptOriginalUrl: true,
+      sourcePlatform: true,
     },
   });
   if (ep?.thumbnailOriginalUrl && !ep.thumbnailLocalPath) {
     return "thumbnail_cache";
   }
   if (ep?.transcriptOriginalUrl) {
+    return "transcription";
+  }
+  if (ep && shouldSkipYouTubeAudioDownload(ep.sourcePlatform)) {
     return "transcription";
   }
   return "download";
@@ -115,6 +120,15 @@ export async function enqueueNextPipelineJob(
     if (
       (next === "download" || next === "audio_extract") &&
       ep.transcriptOriginalUrl
+    ) {
+      completedJobType = next;
+      next = getNextPipelineStep(next);
+      continue;
+    }
+
+    if (
+      (next === "download" || next === "audio_extract") &&
+      shouldSkipYouTubeAudioDownload(ep.sourcePlatform)
     ) {
       completedJobType = next;
       next = getNextPipelineStep(next);

@@ -158,6 +158,14 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
     return;
   }
 
+  const { shouldSkipYouTubeAudioDownload } = await import(
+    "@/lib/transcriptionConfig"
+  );
+  if (shouldSkipYouTubeAudioDownload(ep.sourcePlatform)) {
+    await updateJobProgress(jobId, 100);
+    return;
+  }
+
   await updateJobStatus(jobId, "downloading", { progressPercent: 5 });
 
   const dl = await db.download.create({

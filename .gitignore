@@ -37,6 +37,7 @@ next-env.d.ts
 /storage/
 /cache/
 storage/cookies.txt
+storage:cookies.txt
 cookies.txt
 *.mp3
 *.m4a

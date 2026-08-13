@@ -25,6 +25,14 @@ export function shouldTryYouTubeCaptions(
   );
 }
 
+/** Skip the ~50 MB audio download when free YouTube captions will be used instead. */
+export function shouldSkipYouTubeAudioDownload(
+  sourcePlatform: string,
+  backend: TranscriptionBackend = getTranscriptionBackend(),
+): boolean {
+  return shouldTryYouTubeCaptions(sourcePlatform, backend);
+}
+
 export function shouldTryRssFeedTranscript(
   transcriptOriginalUrl: string | null | undefined,
   sourcePlatform: string,
