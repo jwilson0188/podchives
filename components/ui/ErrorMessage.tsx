@@ -28,7 +28,7 @@ export function ErrorMessage({
       return (
         <p
           className={cn(
-            "text-[11px] text-danger font-mono mt-1 min-w-0 break-words [overflow-wrap:anywhere]",
+            "text-[0.8125rem] text-danger font-mono mt-1 min-w-0 break-words [overflow-wrap:anywhere]",
             className,
           )}
         >

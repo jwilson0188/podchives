@@ -104,7 +104,7 @@ export function TranscriptViewer({
                     >
                       <span
                         className={
-                          "text-[11px] font-mono tabular-nums shrink-0 w-12 sm:w-14 pt-0.5 " +
+                          "text-[0.8125rem] font-mono tabular-nums shrink-0 w-12 sm:w-14 pt-0.5 " +
                           (active ? "text-accent" : "text-text-muted")
                         }
                       >
@@ -132,7 +132,7 @@ export function TranscriptViewer({
         variant="card"
         defaultOpen={false}
         title={
-          <span className="text-[10px] uppercase tracking-widest text-text-muted font-medium">
+          <span className="text-[0.75rem] text-text-muted font-medium">
             Source attribution
           </span>
         }
@@ -187,7 +187,7 @@ function Row({
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-[4.5rem_minmax(0,1fr)] gap-1 sm:gap-3 min-w-0">
-      <span className="text-[11px] uppercase tracking-widest text-text-muted shrink-0">
+      <span className="text-[0.8125rem] text-text-muted shrink-0">
         {label}
       </span>
       <div className="min-w-0">
@@ -195,7 +195,7 @@ function Row({
           {value}
         </span>
         {sub && (
-          <span className="text-[10px] text-text-dim mt-0.5 block">{sub}</span>
+          <span className="text-[0.75rem] text-text-dim mt-0.5 block">{sub}</span>
         )}
       </div>
     </div>

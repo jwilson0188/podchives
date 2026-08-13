@@ -51,9 +51,8 @@ export function ClipOfTheWeek({ clip }: { clip: FeaturedClip }) {
   };
 
   return (
-    <section className="card overflow-hidden mb-6 relative">
-      <div className="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-cyan/5 pointer-events-none" />
-      <div className="relative p-5 lg:p-6">
+    <section className="card overflow-hidden mb-6">
+      <div className="p-5 lg:p-6">
         <div className="flex flex-col sm:flex-row sm:items-start gap-5">
           <div className="w-full sm:w-36 aspect-video sm:aspect-square rounded-lg overflow-hidden border border-border flex-shrink-0 bg-bg-elevated">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -66,25 +65,25 @@ export function ClipOfTheWeek({ clip }: { clip: FeaturedClip }) {
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-2">
-              <span className="pill bg-accent-muted text-accent text-[10px] uppercase tracking-widest">
+              <span className="text-[0.8125rem] font-medium text-ink-secondary">
                 Clip of the week
               </span>
-              <span className="text-[11px] text-text-muted font-mono">
-                from search &ldquo;{clip.searchQuery}&rdquo;
+              <span className="text-[0.8125rem] text-ink-muted">
+                matched &ldquo;{clip.searchQuery}&rdquo;
               </span>
             </div>
 
-            <h2 className="text-lg font-semibold tracking-tight">
+            <h2 className="text-[1.0625rem] font-semibold tracking-[-0.013em] text-ink">
               {clip.episodeTitle}
             </h2>
-            <p className="text-xs text-text-muted mt-0.5">
+            <p className="text-[0.8125rem] text-ink-muted mt-1">
               {clip.podcastName} · {formatDate(clip.publishDate)} ·{" "}
               {formatTimestamp(clip.startTimeSeconds)}
             </p>
 
-            <blockquote className="mt-3 bg-bg-subtle border-l-2 border-accent rounded-r-md px-3 py-2.5">
+            <blockquote className="mt-3 border-l-2 border-line-strong pl-4 py-0.5">
               <p
-                className="text-sm leading-relaxed line-clamp-4 sm:line-clamp-3"
+                className="text-[0.9375rem] leading-relaxed text-ink-secondary line-clamp-4 sm:line-clamp-3"
                 dangerouslySetInnerHTML={{
                   __html: highlight(clip.transcriptText, clip.searchQuery),
                 }}

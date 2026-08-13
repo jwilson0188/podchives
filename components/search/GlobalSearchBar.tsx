@@ -74,7 +74,7 @@ export function GlobalSearchBar({
         }
       />
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-        <kbd className="hidden md:inline-flex h-6 px-1.5 text-[10px] tracking-wider text-text-muted border border-border rounded bg-bg-elevated items-center font-mono">
+        <kbd className="hidden md:inline-flex h-6 px-1.5 text-[0.75rem] tracking-wider text-text-muted border border-border rounded bg-bg-elevated items-center font-mono">
           ENTER
         </kbd>
       </div>

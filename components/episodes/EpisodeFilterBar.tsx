@@ -135,7 +135,7 @@ function FilterFields({
           className={
             inline
               ? "btn-ghost text-sm min-h-[44px] md:min-h-0 px-3"
-              : "text-[11px] text-text-muted hover:text-text-primary uppercase tracking-wider"
+              : "text-[0.8125rem] text-text-muted hover:text-text-primary "
           }
         >
           Reset filters

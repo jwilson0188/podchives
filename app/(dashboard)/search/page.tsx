@@ -15,7 +15,6 @@ export default async function SearchPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="archive_search // keyword"
         title="Search"
         description="Find the exact moment a topic, phrase, or quote was said. Every result cites back to its source."
       />

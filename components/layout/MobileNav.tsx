@@ -45,7 +45,7 @@ export function MobileNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 min-w-[4rem] py-2 px-2 rounded-lg text-[10px] font-medium transition-colors",
+                  "flex flex-col items-center justify-center gap-0.5 min-w-[4rem] py-2 px-2 rounded-lg text-[0.75rem] font-medium transition-colors",
                   active
                     ? "text-accent"
                     : "text-text-muted hover:text-text-primary",
@@ -59,7 +59,7 @@ export function MobileNav() {
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="flex flex-col items-center justify-center gap-0.5 min-w-[4rem] py-2 px-2 rounded-lg text-[10px] font-medium text-text-muted hover:text-text-primary"
+            className="flex flex-col items-center justify-center gap-0.5 min-w-[4rem] py-2 px-2 rounded-lg text-[0.75rem] font-medium text-text-muted hover:text-text-primary"
             aria-label="Open menu"
           >
             <svg

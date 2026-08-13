@@ -24,7 +24,7 @@ export function EpisodeGridCard({ episode }: { episode: EpisodeView }) {
             <StatusBadge status={episode.processingStatus} />
           </div>
           {episode.isSearchable && (
-            <div className="absolute bottom-2 left-2 pill bg-success-muted text-success text-[10px] border border-success/30">
+            <div className="absolute bottom-2 left-2 pill bg-success-muted text-success text-[0.75rem] border border-success/30">
               searchable
             </div>
           )}
@@ -33,7 +33,7 @@ export function EpisodeGridCard({ episode }: { episode: EpisodeView }) {
           <div className="text-sm font-medium line-clamp-2 group-hover:text-accent transition-colors">
             {episode.episodeTitle}
           </div>
-          <div className="text-[11px] text-text-muted mt-1">
+          <div className="text-[0.8125rem] text-text-muted mt-1">
             {formatDate(episode.publishDate)} ·{" "}
             {formatDuration(episode.durationSeconds)}
           </div>

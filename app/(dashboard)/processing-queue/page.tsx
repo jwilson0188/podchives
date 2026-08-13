@@ -35,7 +35,6 @@ export default async function ProcessingQueuePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="ops // queue"
         title="Processing Queue"
         description="Live worker state — what's running, what's waiting, what failed, and what just shipped."
         actions={<WorkerControls initialStatus={workerStatus} />}
@@ -101,7 +100,7 @@ function WorkerCard({
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] uppercase tracking-widest text-text-muted font-medium">
+        <div className="text-[0.75rem] text-text-muted font-medium">
           {title}
         </div>
         <span className={"pill " + (statusTone[status] ?? statusTone.off)}>
@@ -112,7 +111,7 @@ function WorkerCard({
         </span>
       </div>
       <div className="text-lg font-semibold tabular-nums">{value}</div>
-      {hint && <div className="text-[11px] text-text-muted mt-1">{hint}</div>}
+      {hint && <div className="text-[0.8125rem] text-text-muted mt-1">{hint}</div>}
     </div>
   );
 }

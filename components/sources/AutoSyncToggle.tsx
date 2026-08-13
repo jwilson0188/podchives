@@ -52,7 +52,7 @@ export function AutoSyncToggle({
           ? "Auto-sync on — worker re-syncs this source every ~6h"
           : "Auto-sync off — sync manually with “Sync now”"
       }
-      className="flex items-center gap-1.5 text-[11px] text-text-muted disabled:opacity-50"
+      className="flex items-center gap-1.5 text-[0.8125rem] text-text-muted disabled:opacity-50"
     >
       <span
         className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${

@@ -16,7 +16,6 @@ export default async function EpisodesPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="library // catalog"
         title="Episodes"
         description="Every video, livestream, and recording — filter by archive or show only fully searchable episodes."
       />

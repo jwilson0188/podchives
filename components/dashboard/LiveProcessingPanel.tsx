@@ -59,7 +59,7 @@ export function LiveProcessingPanel() {
                   <div className="text-sm font-medium break-words [overflow-wrap:anywhere] line-clamp-2 sm:line-clamp-none">
                     {j.episodeTitle}
                   </div>
-                  <div className="text-[11px] text-text-muted font-mono mt-0.5 break-words">
+                  <div className="text-[0.8125rem] text-text-muted font-mono mt-0.5 break-words">
                     {j.podcastName} · {j.jobType.replace(/_/g, " ")}
                   </div>
                 </div>
@@ -75,7 +75,7 @@ export function LiveProcessingPanel() {
                       : "active"
                 }
               />
-              <div className="mt-1.5 text-[11px] text-text-muted font-mono tabular-nums">
+              <div className="mt-1.5 text-[0.8125rem] text-text-muted font-mono tabular-nums">
                 {j.progressPercent}%
               </div>
               {j.errorMessage && (

@@ -108,13 +108,11 @@ export function DashboardShell({
 
         {data.featuredClip && <ClipOfTheWeek clip={data.featuredClip} />}
 
-        <section className="card p-5 lg:p-6 mb-6 terminal-grid">
+        <section className="card p-5 lg:p-6 mb-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-accent font-medium">
-                Search your archive
-              </div>
-              <div className="text-text-muted text-sm mt-0.5">
+              <h2 className="title-section">Search your archive</h2>
+              <div className="text-ink-secondary text-sm mt-1">
                 Every quote, topic, and moment — cite back to the exact timestamp.
               </div>
             </div>
@@ -167,7 +165,7 @@ export function DashboardShell({
                       <div className="text-sm font-medium truncate text-text-primary group-hover:text-accent">
                         &ldquo;{q.queryText}&rdquo;
                       </div>
-                      <div className="text-[11px] text-text-muted font-mono mt-0.5">
+                      <div className="text-[0.8125rem] text-text-muted font-mono mt-0.5">
                         {q.filtersUsed} · {formatRelativeDate(q.createdAt)}
                       </div>
                     </div>

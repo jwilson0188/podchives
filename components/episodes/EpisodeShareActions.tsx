@@ -94,7 +94,7 @@ export function EpisodeShareActions({
       onKeyDown={(e) => e.stopPropagation()}
     >
       {feedback && (
-        <span className="text-[10px] text-success mr-1">{feedback}</span>
+        <span className="text-[0.75rem] text-success mr-1">{feedback}</span>
       )}
       <button
         type="button"

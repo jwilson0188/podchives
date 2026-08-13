@@ -32,9 +32,6 @@ export function BrandHero({
 
   return (
     <section className="card overflow-hidden mb-6 relative min-w-0">
-      <div className="absolute inset-0 terminal-grid opacity-30 pointer-events-none" />
-      <div className="absolute -top-24 -right-24 w-72 h-72 bg-accent/8 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-success/5 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative p-4 sm:p-5 lg:p-7 min-w-0">
         <div className="flex flex-col gap-4 sm:gap-5">
@@ -80,23 +77,21 @@ export function BrandHero({
 
 function HeroEyebrow({ multiBrand }: { multiBrand: boolean }) {
   return (
-    <div className="text-[10px] uppercase tracking-[0.2em] text-accent font-medium mb-1">
-      {multiBrand ? "podchives // library" : "podchives // your brand"}
-    </div>
+    <p className="mb-1 text-[0.8125rem] text-ink-muted">
+      {multiBrand ? "Your library" : "Your archive"}
+    </p>
   );
 }
 
 function HeroTitle({ title }: { title: string }) {
   return (
-    <h1 className="text-xl sm:text-2xl lg:text-[1.75rem] font-semibold tracking-tight text-text-primary leading-tight break-words">
-      {title}
-    </h1>
+    <h1 className="title-page break-words [overflow-wrap:anywhere]">{title}</h1>
   );
 }
 
 function HeroSubtitle({ text }: { text: string }) {
   return (
-    <p className="text-sm text-text-muted mt-1 max-w-xl line-clamp-3 sm:line-clamp-2 mx-auto sm:mx-0">
+    <p className="mx-auto mt-2 max-w-[52ch] text-[0.9375rem] leading-relaxed text-ink-secondary line-clamp-3 sm:mx-0 sm:line-clamp-2">
       {text}
     </p>
   );

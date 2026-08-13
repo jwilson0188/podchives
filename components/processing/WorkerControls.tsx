@@ -76,12 +76,12 @@ export function WorkerControls({
         )}
       </div>
       {message && (
-        <p className="text-[11px] text-text-muted max-w-xs text-right">
+        <p className="text-[0.8125rem] text-text-muted max-w-xs text-right">
           {message}
         </p>
       )}
       {!status.enabled && status.queuedCount > 0 && !message && (
-        <p className="text-[11px] text-text-muted max-w-xs text-right">
+        <p className="text-[0.8125rem] text-text-muted max-w-xs text-right">
           {status.queuedCount} job{status.queuedCount === 1 ? "" : "s"} waiting
           in queue.
         </p>

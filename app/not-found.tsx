@@ -4,7 +4,7 @@ export default function NotFound() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg p-6">
       <div className="card p-8 max-w-md text-center">
-        <div className="text-[10px] uppercase tracking-[0.25em] text-text-muted mb-2">
+        <div className="text-[0.75rem] text-text-muted mb-2">
           404 · not found
         </div>
         <h1 className="text-2xl font-semibold tracking-tight mb-2">

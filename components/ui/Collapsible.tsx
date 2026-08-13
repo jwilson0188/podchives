@@ -65,7 +65,7 @@ export function Collapsible({
         <div className="min-w-0 flex-1">
           <div className="min-w-0">{title}</div>
           {!open && summary != null && summary !== "" && (
-            <div className="text-[11px] text-text-muted mt-0.5 line-clamp-2 break-words [overflow-wrap:anywhere]">
+            <div className="text-[0.8125rem] text-text-muted mt-0.5 line-clamp-2 break-words [overflow-wrap:anywhere]">
               {summary}
             </div>
           )}

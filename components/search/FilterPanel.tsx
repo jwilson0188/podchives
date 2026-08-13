@@ -73,7 +73,7 @@ export function FilterPanel({
           <button
             type="button"
             onClick={reset}
-            className="text-[11px] text-text-muted hover:text-text-primary uppercase tracking-wider"
+            className="text-[0.8125rem] text-text-muted hover:text-text-primary"
           >
             Reset
           </button>
@@ -193,7 +193,7 @@ function FilterFields({
 
       {showModeToggle && (
         <div className="mt-5 pt-4 border-t border-border">
-          <div className="text-[10px] uppercase tracking-widest text-text-muted mb-2">
+          <div className="text-[0.75rem] text-text-muted mb-2">
             Search type
           </div>
           <div className="grid grid-cols-3 gap-1 p-1 bg-bg-subtle rounded-md border border-border">

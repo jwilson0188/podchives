@@ -11,7 +11,6 @@ export default async function UsagePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="ops // usage"
         title="Usage / Compute"
         description={`Transcription, embeddings, and storage to date · compute budget for ${payload.usage.monthLabel}.`}
       />

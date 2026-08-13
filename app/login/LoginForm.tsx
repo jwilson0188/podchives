@@ -11,7 +11,7 @@ export function LoginForm({ next }: { next: string }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) return;
+    if (!password.trim() || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -22,44 +22,50 @@ export function LoginForm({ next }: { next: string }) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body?.error ?? "Wrong password.");
+        setError(body?.error ?? "That password didn't match.");
         return;
       }
       router.replace(next || "/dashboard");
       router.refresh();
     } catch (err: any) {
-      setError(err?.message ?? "Login failed.");
+      setError(err?.message ?? "Sign in failed.");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-3">
       <div>
-        <label className="label">Password</label>
+        <label htmlFor="beta-password" className="label">
+          Password
+        </label>
         <input
+          id="beta-password"
           type="password"
           autoFocus
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="input font-mono"
-          placeholder="••••••••"
+          className="input"
+          placeholder="Enter your password"
           required
         />
       </div>
-      <button
-        type="submit"
-        disabled={submitting || !password.trim()}
-        className="btn-primary w-full"
-      >
+
+      {/* Not disabled on empty input: password managers autofill without
+          firing onChange, which would otherwise leave this stuck. */}
+      <button type="submit" disabled={submitting} className="btn-primary w-full">
         {submitting ? "Signing in…" : "Sign in"}
       </button>
+
       {error && (
-        <div className="px-3 py-2 rounded-md bg-danger-muted text-danger border border-danger/30 text-xs font-mono">
+        <p
+          role="alert"
+          className="rounded-md border border-critical/25 bg-critical-wash px-3 py-2 text-sm text-critical"
+        >
           {error}
-        </div>
+        </p>
       )}
     </form>
   );

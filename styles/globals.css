@@ -2,105 +2,243 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Design tokens.
+
+   Every colour is an RGB triplet so Tailwind can apply opacity modifiers
+   (`bg-surface/60`). Light is the base definition; dark overrides only what
+   changes, under `prefers-color-scheme` so it follows the OS automatically.
+   No class toggling, no JS, no flash on load.
+
+   Palette notes: neutrals carry a slight warm cast (hue ~30) rather than
+   pure grey — it reads as considered rather than default. The accent is a
+   burnt amber that holds contrast in both themes; it is the only saturated
+   colour in the core UI, reserved for primary action and live state.
+   ───────────────────────────────────────────────────────────────────────── */
+
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+
+  /* Surfaces, back to front */
+  --canvas: 250 249 247; /* page */
+  --surface: 255 255 255; /* cards */
+  --surface-raised: 255 255 255; /* menus, popovers */
+  --surface-sunken: 244 242 239; /* wells, inputs, table stripes */
+
+  /* Text, most to least prominent */
+  --ink: 28 25 23;
+  --ink-secondary: 87 83 78;
+  --ink-muted: 120 113 108;
+
+  /* Lines */
+  --line: 231 227 222;
+  --line-strong: 214 209 202;
+
+  /* Brand accent */
+  --accent: 194 65 12;
+  --accent-hover: 154 52 18;
+  --accent-contrast: 255 255 255;
+  --accent-wash: 255 237 213;
+
+  /* Status */
+  --positive: 21 128 61;
+  --positive-wash: 220 252 231;
+  --caution: 161 98 7;
+  --caution-wash: 254 249 195;
+  --critical: 185 28 28;
+  --critical-wash: 254 226 226;
+  --info: 3 105 161;
+  --info-wash: 224 242 254;
+
+  /* Elevation — light mode leans on shadow, not borders */
+  --shadow-sm: 0 1px 2px 0 rgb(28 25 23 / 0.05);
+  --shadow-md:
+    0 1px 3px 0 rgb(28 25 23 / 0.07), 0 1px 2px -1px rgb(28 25 23 / 0.04);
+  --shadow-lg:
+    0 8px 24px -6px rgb(28 25 23 / 0.1), 0 2px 6px -2px rgb(28 25 23 / 0.05);
+  --shadow-focus: 0 0 0 3px rgb(var(--accent) / 0.18);
 }
 
-html,
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --canvas: 12 12 13;
+    --surface: 24 23 25;
+    --surface-raised: 32 31 33;
+    --surface-sunken: 18 17 19;
+
+    --ink: 237 234 230;
+    --ink-secondary: 168 162 158;
+    --ink-muted: 124 118 114;
+
+    --line: 41 39 42;
+    --line-strong: 58 55 59;
+
+    --accent: 249 115 22;
+    --accent-hover: 251 146 60;
+    --accent-contrast: 26 15 8;
+    --accent-wash: 67 30 10;
+
+    --positive: 74 222 128;
+    --positive-wash: 20 48 33;
+    --caution: 250 204 21;
+    --caution-wash: 56 44 12;
+    --critical: 248 113 113;
+    --critical-wash: 60 26 26;
+    --info: 56 189 248;
+    --info-wash: 12 43 61;
+
+    /* Dark mode: shadows read as murk, so depth comes from surface + line */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-md: 0 2px 8px -2px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+    --shadow-focus: 0 0 0 3px rgb(var(--accent) / 0.28);
+  }
+}
+
+html {
+  background-color: rgb(var(--canvas));
+}
+
 body {
-  background-color: #111111;
-  color: #e0e0e0;
-  font-family:
-    "Inter",
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--ink));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-* {
-  border-color: rgba(255, 255, 255, 0.08);
+/* Numbers in tables, stats and timestamps should never shift width. */
+.tabular,
+table,
+time,
+.font-mono {
+  font-variant-numeric: tabular-nums;
 }
 
 ::selection {
-  background: rgba(255, 61, 0, 0.3);
-  color: #fff;
+  background: rgb(var(--accent) / 0.22);
 }
 
-/* Scrollbar */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+/* Scrollbars: present but quiet. */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  background: rgb(var(--line-strong));
+  border-radius: 999px;
+  border: 3px solid rgb(var(--canvas));
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgb(var(--ink-muted) / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer components {
+  /* ── Surfaces ─────────────────────────────────────────────────────── */
   .card {
-    @apply bg-bg-card border border-border rounded-xl;
+    @apply bg-surface border border-line rounded-lg shadow-sm;
   }
 
   .card-hover {
-    @apply transition-colors hover:border-border-strong hover:bg-bg-elevated;
+    @apply transition-[box-shadow,border-color,transform] duration-150
+           hover:border-line-strong hover:shadow-md;
   }
 
+  .well {
+    @apply bg-sunken border border-line rounded-lg;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-md
-           text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-           min-h-[44px] sm:min-h-0;
+    @apply inline-flex items-center justify-center gap-2 rounded-md
+           px-3.5 py-2 text-sm font-medium leading-none
+           transition-[background-color,border-color,color,box-shadow] duration-150
+           disabled:opacity-45 disabled:pointer-events-none
+           min-h-[2.5rem] sm:min-h-[2.25rem];
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent-hover shadow-glow;
+    @apply btn bg-accent text-accent-contrast shadow-sm
+           hover:bg-accent-hover active:translate-y-px;
   }
   .btn-secondary {
-    @apply btn bg-bg-elevated text-text-primary border border-border hover:bg-bg-card hover:border-border-strong;
+    @apply btn bg-surface text-ink border border-line shadow-sm
+           hover:bg-sunken hover:border-line-strong active:translate-y-px;
   }
   .btn-ghost {
-    @apply btn text-text-muted hover:text-text-primary hover:bg-bg-elevated;
+    @apply btn text-ink-secondary hover:text-ink hover:bg-sunken;
   }
   .btn-danger {
-    @apply btn bg-danger-muted text-danger hover:bg-danger hover:text-white;
+    @apply btn bg-critical-wash text-critical border border-critical/25
+           hover:bg-critical hover:text-surface;
   }
 
+  /* ── Forms ────────────────────────────────────────────────────────── */
   .input {
-    @apply w-full bg-bg-subtle border border-border rounded-md px-3 py-2.5 sm:py-2 text-base sm:text-sm
-           text-text-primary placeholder:text-text-muted
-           focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60
-           transition-colors;
+    @apply w-full rounded-md border border-line bg-surface
+           px-3 py-2.5 sm:py-2 text-base sm:text-sm text-ink
+           placeholder:text-ink-muted shadow-sm
+           transition-[border-color,box-shadow] duration-150
+           focus:outline-none focus:border-accent focus:shadow-focus;
   }
 
   .label {
-    @apply block text-xs uppercase tracking-wider text-text-muted mb-1.5 font-medium;
+    @apply block text-[0.8125rem] font-medium text-ink-secondary mb-1.5;
   }
 
+  /* Small caps for section eyebrows — used sparingly, not on every element. */
+  .eyebrow {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted;
+  }
+
+  /* ── Indicators ───────────────────────────────────────────────────── */
   .pill {
-    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium
-           uppercase tracking-wider;
+    @apply inline-flex items-center gap-1.5 rounded-full
+           px-2 py-0.5 text-[0.6875rem] font-medium;
+  }
+
+  /* Search hit: tinted ground, full-contrast text. */
+  .search-hit {
+    @apply rounded-[0.1875rem] bg-caution-wash px-0.5 text-ink;
+    box-shadow: 0 0 0 1px rgb(var(--caution) / 0.25);
   }
 
   .table-row {
-    @apply border-b border-border hover:bg-bg-elevated/50 transition-colors;
+    @apply border-b border-line transition-colors hover:bg-sunken;
   }
 
-  .terminal-grid {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-    background-size: 32px 32px;
+  /* ── Typography ───────────────────────────────────────────────────── */
+  .title-page {
+    @apply text-[1.75rem] sm:text-[2rem] font-semibold tracking-[-0.021em] text-ink leading-[1.15];
+  }
+  .title-section {
+    @apply text-base font-semibold tracking-[-0.011em] text-ink;
+  }
+  .prose-muted {
+    @apply text-sm leading-relaxed text-ink-secondary;
   }
 
+  /* ── Utilities ────────────────────────────────────────────────────── */
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -111,6 +249,28 @@ body {
 
   .video-embed > iframe,
   .video-embed > video {
-    @apply absolute inset-0 w-full h-full border-0;
+    @apply absolute inset-0 h-full w-full border-0;
+  }
+
+  /* Skeleton shimmer for loading states. */
+  .skeleton {
+    @apply bg-sunken rounded relative overflow-hidden;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--ink) / 0.05),
+      transparent
+    );
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }

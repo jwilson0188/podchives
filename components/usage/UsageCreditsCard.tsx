@@ -42,7 +42,7 @@ export function UsageCreditsCard({ initial }: { initial: UsageStats }) {
               / {usage.creditsTotal}
             </span>
           </div>
-          <div className="text-[11px] uppercase tracking-widest text-text-muted">
+          <div className="text-[0.8125rem] text-text-muted">
             credits left
           </div>
         </div>

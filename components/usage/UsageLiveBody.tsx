@@ -101,7 +101,7 @@ export function UsageLiveBody({
           </span>
         </div>
         <table className="w-full text-sm">
-          <thead className="text-[10px] uppercase tracking-widest text-text-muted">
+          <thead className="text-[0.75rem] text-text-muted">
             <tr>
               <th className="text-left font-medium pb-2">Stage</th>
               <th className="text-left font-medium pb-2">Provider</th>
@@ -136,7 +136,7 @@ export function UsageLiveBody({
             />
           </tbody>
         </table>
-        <p className="mt-4 text-[11px] text-text-muted">
+        <p className="mt-4 text-[0.8125rem] text-text-muted">
           Measured from real usage: transcription minutes (API fallback when
           YouTube captions are unavailable), embedding tokens (from OpenAI&apos;s
           reported usage), downloaded audio bytes, and worker wall-clock time.

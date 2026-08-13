@@ -14,7 +14,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#111111",
+  // Match the browser chrome to the active theme rather than pinning dark.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf9f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0c0d" },
+  ],
 };
 
 export default function RootLayout({
@@ -23,16 +27,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
-        <link
-          rel="preconnect"
-          href="https://rsms.me/"
-          crossOrigin="anonymous"
-        />
+        <link rel="preconnect" href="https://rsms.me/" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
       </head>
-      <body className="bg-bg text-text-primary antialiased">{children}</body>
+      <body className="bg-canvas text-ink antialiased">{children}</body>
     </html>
   );
 }

@@ -134,7 +134,7 @@ export const EpisodePlayer = forwardRef<
         allowFullScreen
       />
       {start > 0 && (
-        <div className="absolute top-2 left-2 z-10 pill bg-black/70 text-white border border-white/10 font-mono text-[10px] sm:text-[11px] max-w-[calc(100%-1rem)] truncate">
+        <div className="absolute top-2 left-2 z-10 pill bg-black/70 text-white border border-white/10 font-mono text-[0.75rem] sm:text-[0.8125rem] max-w-[calc(100%-1rem)] truncate">
           starts at {formatTimestamp(start)}
         </div>
       )}

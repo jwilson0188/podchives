@@ -61,7 +61,7 @@ export function PipelineStrip({
             key={s.label}
             className="bg-bg-subtle rounded-lg border border-border p-3 text-center"
           >
-            <div className="text-[10px] uppercase tracking-widest text-text-muted mb-1">
+            <div className="text-[0.75rem] text-text-muted mb-1">
               {s.label}
             </div>
             <div className="text-2xl font-semibold tabular-nums">
@@ -73,7 +73,7 @@ export function PipelineStrip({
                 style={{ width: `${s.pct}%` }}
               />
             </div>
-            <div className="text-[10px] text-text-dim mt-1 tabular-nums">
+            <div className="text-[0.75rem] text-text-dim mt-1 tabular-nums">
               {s.pct}%
             </div>
           </div>

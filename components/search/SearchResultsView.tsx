@@ -41,10 +41,10 @@ export function SearchResultsView({
     ? archives.find((a) => a.id === url.archiveId)?.name
     : undefined;
 
-  const [results, setResults] = useState<SearchResultView[]>(() => {
-    if (!query || !cacheKey) return [];
-    return getCachedSearch(cacheKey) ?? [];
-  });
+  // Start empty to match SSR — sessionStorage doesn't exist on the server, so
+  // seeding from cache here renders different markup on the client and trips
+  // a hydration error. The effect below rehydrates from cache after mount.
+  const [results, setResults] = useState<SearchResultView[]>([]);
 
   const [refreshing, setRefreshing] = useState(false);
 

@@ -25,7 +25,6 @@ export default async function DownloadManagerPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="ops // mission control"
         title="Download Manager"
         description="Mission control for ingestion. Sources, syncs, downloads, transcripts, embeddings, indexing — end to end."
         actions={
@@ -36,7 +35,7 @@ export default async function DownloadManagerPage() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold tracking-tight">Connected sources</h2>
-          <span className="text-[11px] text-text-muted font-mono">
+          <span className="text-[0.8125rem] text-text-muted font-mono">
             {sources.length} source{sources.length === 1 ? "" : "s"}
           </span>
         </div>
@@ -83,7 +82,7 @@ export default async function DownloadManagerPage() {
       <section>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
           <h2 className="font-semibold tracking-tight">Episode pipeline</h2>
-          <span className="text-[11px] text-text-muted font-mono break-words">
+          <span className="text-[0.8125rem] text-text-muted font-mono break-words">
             ingest → download → transcribe → embed → index → searchable
           </span>
         </div>
@@ -112,7 +111,7 @@ function SyncStat({
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-1.5">
-        <div className="text-[10px] uppercase tracking-widest text-text-muted font-medium">
+        <div className="text-[0.75rem] text-text-muted font-medium">
           {label}
         </div>
         <StatusBadge status={status} />

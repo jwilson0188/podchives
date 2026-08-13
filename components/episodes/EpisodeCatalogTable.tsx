@@ -48,13 +48,13 @@ export function EpisodeCatalogTable({
                 <div className="font-medium text-sm line-clamp-2">
                   {ep.episodeTitle}
                 </div>
-                <div className="text-[11px] text-text-muted mt-1">
+                <div className="text-[0.8125rem] text-text-muted mt-1">
                   {formatDate(ep.publishDate)} · {formatDuration(ep.durationSeconds)}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <StatusBadge status={ep.processingStatus} />
                   {ep.isSearchable && (
-                    <span className="pill bg-success-muted text-success text-[10px]">
+                    <span className="pill bg-success-muted text-success text-[0.75rem]">
                       searchable
                     </span>
                   )}
@@ -77,7 +77,7 @@ export function EpisodeCatalogTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-[10px] uppercase tracking-widest text-text-muted bg-bg-subtle">
+              <tr className="text-[0.75rem] text-text-muted bg-bg-subtle">
                 <th className="text-left font-medium px-4 py-3">Episode</th>
                 <th className="text-left font-medium px-3 py-3">Published</th>
                 <th className="text-left font-medium px-3 py-3">Duration</th>
@@ -112,7 +112,7 @@ export function EpisodeCatalogTable({
                         <div className="font-medium truncate text-text-primary group-hover:text-accent transition-colors">
                           {ep.episodeTitle}
                         </div>
-                        <div className="text-[11px] text-text-muted font-mono">
+                        <div className="text-[0.8125rem] text-text-muted font-mono">
                           {ep.externalId}
                           {ep.episodeNumber != null && (
                             <> · ep.{ep.episodeNumber}</>

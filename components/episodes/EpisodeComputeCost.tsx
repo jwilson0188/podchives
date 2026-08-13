@@ -63,11 +63,11 @@ function UsageStat({
 }) {
   return (
     <div className="bg-bg-subtle rounded-lg border border-border p-3">
-      <div className="text-[10px] uppercase tracking-widest text-text-muted">
+      <div className="text-[0.75rem] text-text-muted">
         {label}
       </div>
       <div className="text-lg font-semibold tabular-nums mt-0.5">{value}</div>
-      <div className="text-[11px] text-text-muted font-mono">{sub}</div>
+      <div className="text-[0.8125rem] text-text-muted font-mono">{sub}</div>
     </div>
   );
 }
