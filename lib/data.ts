@@ -1329,10 +1329,12 @@ function toEpisodeView(e: any): EpisodeView {
     episodeNumber: e.episodeNumber ?? null,
     sourceUrl: e.sourceUrl,
     sourcePlatform: e.sourcePlatform,
+    // Empty (not epoch 0) when unknown — formatDate renders it as an em dash
+    // instead of "Dec 31, 1969".
     publishDate:
       e.publishDate instanceof Date
         ? e.publishDate.toISOString()
-        : (e.publishDate ?? new Date(0).toISOString()),
+        : (e.publishDate ?? ""),
     durationSeconds: e.durationSeconds ?? 0,
     thumbnailUrl: resolveThumbnailUrl({
       localPath: e.thumbnailLocalPath,

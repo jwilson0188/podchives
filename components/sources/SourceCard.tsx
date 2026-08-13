@@ -54,7 +54,7 @@ export function SourceCard({
         >
           {source.sourceUrl}
         </a>
-        <div className="mt-2 flex items-center gap-3 text-[11px] text-text-dim">
+        <div className="mt-2 flex items-center gap-3 text-[0.8125rem] text-text-dim">
           <span>{PLATFORM_LABELS[source.sourceType]}</span>
           <span>·</span>
           <span>{source.episodesFound} episodes</span>

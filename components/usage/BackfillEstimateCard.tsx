@@ -67,7 +67,7 @@ export function BackfillEstimateCard({
         </div>
       </div>
 
-      <p className="text-[11px] text-text-muted">
+      <p className="text-[0.8125rem] text-text-muted">
         Based on episode duration in your archive. YouTube sources use free
         auto-captions first; Groq Whisper API fallback is $
         {getTranscriptionCostPerMinute().toFixed(4)}/min. Embeddings: $

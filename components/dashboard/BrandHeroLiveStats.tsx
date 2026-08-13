@@ -51,7 +51,7 @@ export function CoverageRingLive() {
           fill="none"
           stroke="currentColor"
           strokeWidth="5"
-          className="text-bg-elevated"
+          className="text-line"
         />
         <circle
           cx="50"
@@ -76,7 +76,7 @@ export function CoverageRingLive() {
         <span className="text-xl font-semibold tabular-nums leading-none">
           {coverageLabel(pct, searchable)}
         </span>
-        <span className="text-[8px] uppercase tracking-[0.18em] text-text-muted mt-1">
+        <span className="text-[0.625rem] text-ink-muted mt-1">
           searchable
         </span>
       </div>
@@ -92,7 +92,7 @@ export function HeroStatusRow() {
       {workerActive || stats.activeJobs > 0 ? (
         <Link
           href="/processing-queue"
-          className="pill bg-success-muted text-success border border-success/30 text-[10px] flex items-center gap-1.5"
+          className="pill bg-success-muted text-success border border-success/30 text-[0.75rem] flex items-center gap-1.5"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
           {stats.activeJobs > 0
@@ -102,12 +102,12 @@ export function HeroStatusRow() {
       ) : stats.queuedJobs > 0 ? (
         <Link
           href="/processing-queue"
-          className="pill bg-warn-muted text-warn border border-warn/30 text-[10px]"
+          className="pill bg-warn-muted text-warn border border-warn/30 text-[0.75rem]"
         >
           {formatCompactNumber(stats.queuedJobs)} queued
         </Link>
       ) : (
-        <span className="pill bg-bg-elevated text-text-muted border border-border text-[10px]">
+        <span className="pill bg-bg-elevated text-text-muted border border-border text-[0.75rem]">
           Worker idle
         </span>
       )}
@@ -115,7 +115,7 @@ export function HeroStatusRow() {
       {stats.failedJobs > 0 && (
         <Link
           href="/processing-queue"
-          className="text-[10px] text-text-muted hover:text-danger border border-border rounded-full px-2.5 py-1 bg-bg-subtle transition-colors"
+          className="text-[0.75rem] text-text-muted hover:text-danger border border-border rounded-full px-2.5 py-1 bg-bg-subtle transition-colors"
           title="Historical failed jobs — open queue to review or retry"
         >
           {formatCompactNumber(stats.failedJobs)} past failures →
@@ -153,7 +153,7 @@ export function HeroPipelineBar() {
       key: "waiting",
       count: waiting,
       pct: (waiting / total) * 100,
-      color: "bg-bg-elevated",
+      color: "bg-line",
       label: "Waiting",
     },
   ].filter((s) => s.count > 0);
@@ -161,18 +161,18 @@ export function HeroPipelineBar() {
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between gap-3 mb-2">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted font-medium">
+        <div className="text-[0.8125rem] text-ink-secondary font-medium">
           Archive pipeline
         </div>
         <Link
           href="/processing-queue"
-          className="text-[10px] text-accent hover:text-accent-hover"
+          className="text-[0.75rem] text-accent hover:text-accent-hover"
         >
           Open queue →
         </Link>
       </div>
 
-      <div className="h-2.5 rounded-full bg-bg-elevated overflow-hidden flex">
+      <div className="h-2 rounded-full bg-sunken border border-line overflow-hidden flex">
         {segments.map((s) => (
           <div
             key={s.key}
@@ -194,7 +194,7 @@ export function HeroPipelineBar() {
         {segments.map((s) => (
           <div
             key={s.key}
-            className="flex items-center gap-1.5 text-[10px] text-text-muted"
+            className="flex items-center gap-1.5 text-[0.75rem] text-text-muted"
           >
             <span className={`w-2 h-2 rounded-sm ${s.color.split(" ")[0]}`} />
             <span>
@@ -206,7 +206,7 @@ export function HeroPipelineBar() {
           </div>
         ))}
         {live.backlogEpisodes > 0 && (
-          <span className="text-[10px] text-warn/90 tabular-nums">
+          <span className="text-[0.75rem] text-warn/90 tabular-nums">
             {formatCompactNumber(live.backlogEpisodes)} still processing
           </span>
         )}
@@ -237,7 +237,6 @@ export function HeroStatGrid() {
       sub: `${formatNumber(live.stats.searchableEpisodes)} ready`,
       bar: searchablePct,
       barColor: "bg-success",
-      valueClass: "text-success",
     },
     {
       label: "Moments",
@@ -265,35 +264,29 @@ export function HeroStatGrid() {
             : "awaiting pipeline",
       bar: Math.min(100, (live.backlogEpisodes / total) * 100),
       barColor: "bg-warn",
-      valueClass: live.backlogEpisodes > 0 ? "text-warn" : "text-text-muted",
+      valueClass: live.backlogEpisodes > 0 ? "text-caution" : "text-ink-muted",
     },
   ];
 
+  // Bars were decorative — "Moments" scaled against an invented denominator.
+  // The pipeline bar above already carries progress, so the tiles just read
+  // as numbers.
   return (
-    <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-5 lg:grid-cols-4">
       {tiles.map((t) => (
-        <div
-          key={t.label}
-          className="rounded-lg border border-border bg-bg-subtle/80 px-3.5 py-3"
-        >
-          <div className="text-[9px] uppercase tracking-[0.16em] text-text-muted mb-1">
-            {t.label}
-          </div>
-          <div
-            className={`text-lg font-semibold tabular-nums leading-tight ${t.valueClass ?? ""}`}
+        <div key={t.label} className="min-w-0">
+          <dt className="text-[0.8125rem] text-ink-secondary">{t.label}</dt>
+          <dd
+            className={`mt-1 text-[1.5rem] font-semibold leading-none tracking-[-0.02em] tabular ${t.valueClass ?? "text-ink"}`}
           >
             {t.value}
-          </div>
-          <div className="text-[10px] text-text-dim mt-0.5">{t.sub}</div>
-          <div className="mt-2.5 h-1 rounded-full bg-bg-elevated overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-700 ${t.barColor}`}
-              style={{ width: `${Math.max(t.bar, t.bar > 0 ? 2 : 0)}%` }}
-            />
-          </div>
+          </dd>
+          <dd className="mt-1 text-[0.8125rem] text-ink-muted truncate">
+            {t.sub}
+          </dd>
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -306,14 +299,14 @@ export function HeroActiveJobsStrip() {
   return (
     <div className="mt-5 pt-5 border-t border-border">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted font-medium flex items-center gap-2">
+        <div className="text-[0.8125rem] text-ink-secondary font-medium flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
           Live now
         </div>
         {activeJobs.length > 3 && (
           <Link
             href="/processing-queue"
-            className="text-[10px] text-text-muted hover:text-accent"
+            className="text-[0.75rem] text-text-muted hover:text-accent"
           >
             +{activeJobs.length - 3} more →
           </Link>
@@ -331,11 +324,11 @@ export function HeroActiveJobsStrip() {
                 <div className="text-xs font-medium truncate">
                   {job.episodeTitle}
                 </div>
-                <div className="text-[10px] text-text-muted font-mono mt-0.5">
+                <div className="text-[0.75rem] text-text-muted font-mono mt-0.5">
                   {job.jobType.replace(/_/g, " ")}
                 </div>
               </div>
-              <span className="text-[10px] text-text-muted tabular-nums shrink-0">
+              <span className="text-[0.75rem] text-text-muted tabular-nums shrink-0">
                 {job.progressPercent}%
               </span>
             </div>

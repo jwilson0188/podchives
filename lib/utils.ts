@@ -82,7 +82,7 @@ export function highlight(text: string, query: string): string {
   const safe = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return text.replace(
     new RegExp(`(${safe})`, "ig"),
-    '<mark class="bg-accent/30 text-text-primary rounded px-0.5">$1</mark>',
+    '<mark class="search-hit">$1</mark>',
   );
 }
 

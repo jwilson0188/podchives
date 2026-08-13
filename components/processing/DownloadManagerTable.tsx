@@ -25,7 +25,7 @@ export function DownloadManagerTable({
                 <div className="font-medium text-sm break-words [overflow-wrap:anywhere]">
                   {d.episodeTitle}
                 </div>
-                <div className="text-[11px] text-text-muted font-mono mt-1 break-words">
+                <div className="text-[0.8125rem] text-text-muted font-mono mt-1 break-words">
                   {d.podcastName}
                   {d.completedAt && (
                     <> · finished {formatRelativeDate(d.completedAt)}</>
@@ -40,7 +40,7 @@ export function DownloadManagerTable({
                 <ErrorMessage className="mt-3">{d.errorMessage}</ErrorMessage>
               )}
 
-              <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[0.8125rem]">
                 <Meta label="Type" value={d.downloadType} />
                 <Meta
                   label="Searchable"
@@ -57,7 +57,7 @@ export function DownloadManagerTable({
               <div className="mt-3">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <StatusBadge status={d.status} />
-                  <span className="text-[11px] text-text-muted font-mono tabular-nums">
+                  <span className="text-[0.8125rem] text-text-muted font-mono tabular-nums">
                     {d.progressPercent}%
                   </span>
                 </div>
@@ -92,7 +92,7 @@ export function DownloadManagerTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
-              <tr className="text-[10px] uppercase tracking-widest text-text-muted bg-bg-subtle">
+              <tr className="text-[0.75rem] text-text-muted bg-bg-subtle">
                 <th className="text-left font-medium px-4 py-3 min-w-[220px]">
                   Episode
                 </th>
@@ -119,7 +119,7 @@ export function DownloadManagerTable({
                       <div className="font-medium break-words [overflow-wrap:anywhere]">
                         {d.episodeTitle}
                       </div>
-                      <div className="text-[11px] text-text-muted font-mono mt-0.5">
+                      <div className="text-[0.8125rem] text-text-muted font-mono mt-0.5">
                         {d.podcastName}
                         {d.completedAt && (
                           <> · finished {formatRelativeDate(d.completedAt)}</>
@@ -142,7 +142,7 @@ export function DownloadManagerTable({
                     <td className="px-3 py-3 min-w-[160px]">
                       <div className="flex items-center gap-2">
                         <StatusBadge status={d.status} />
-                        <span className="text-[11px] text-text-muted font-mono tabular-nums">
+                        <span className="text-[0.8125rem] text-text-muted font-mono tabular-nums">
                           {d.progressPercent}%
                         </span>
                       </div>
@@ -181,7 +181,7 @@ export function DownloadManagerTable({
                       {d.status === "failed" ? (
                         <button className="btn-danger text-xs">Retry</button>
                       ) : d.status === "completed" ? (
-                        <span className="text-[11px] text-text-muted">—</span>
+                        <span className="text-[0.8125rem] text-text-muted">—</span>
                       ) : (
                         <button className="btn-ghost text-xs">Cancel</button>
                       )}
@@ -200,7 +200,7 @@ export function DownloadManagerTable({
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-bg-subtle px-2.5 py-2 min-w-0">
-      <div className="text-[9px] uppercase tracking-widest text-text-muted">
+      <div className="text-[0.75rem] text-text-muted">
         {label}
       </div>
       <div className="text-xs font-mono mt-0.5 truncate">{value}</div>

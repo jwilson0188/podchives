@@ -112,7 +112,7 @@ export function AddSourceForm() {
                 >
                   {opt.label}
                 </div>
-                <div className="text-[10px] text-text-muted font-mono truncate">
+                <div className="text-[0.75rem] text-text-muted font-mono truncate">
                   {opt.hint}
                 </div>
               </button>
@@ -142,7 +142,7 @@ export function AddSourceForm() {
       </div>
 
       <div className="flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3">
-        <p className="text-[11px] text-text-muted sm:max-w-[55%]">
+        <p className="text-[0.8125rem] text-text-muted sm:max-w-[55%]">
           Authenticated sources (Patreon, members-only) require cookies. Set{" "}
           <code className="text-cyan">YOUTUBE_COOKIES_FILE</code> in your env.
         </p>

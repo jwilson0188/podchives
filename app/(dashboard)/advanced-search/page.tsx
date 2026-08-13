@@ -13,7 +13,6 @@ export default async function AdvancedSearchPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="archive_search // advanced"
         title="Advanced Search"
         description="Build a precise query: natural language, filters, archives, and semantic similarity over your transcripts."
       />

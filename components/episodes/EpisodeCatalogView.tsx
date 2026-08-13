@@ -30,14 +30,11 @@ export function EpisodeCatalogView({
     [archive, status],
   );
 
-  const [episodes, setEpisodes] = useState<EpisodeView[]>(() => {
-    const fresh = getCachedEpisodeCatalog(cacheKey);
-    if (fresh) return fresh;
-    const stale = getStaleEpisodeCatalog(cacheKey);
-    if (stale) return stale;
-    if (!archive && !status) return initialEpisodes;
-    return initialEpisodes;
-  });
+  // Must match the server's first paint exactly: sessionStorage is unavailable
+  // during SSR, so reading the cache here renders different text on the client
+  // and breaks hydration. The effect below adopts the cache immediately after
+  // mount, which keeps back-navigation instant without the mismatch.
+  const [episodes, setEpisodes] = useState<EpisodeView[]>(initialEpisodes);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -95,7 +92,7 @@ export function EpisodeCatalogView({
     <>
       <EpisodeFilterBar archives={archives} />
       {refreshing && episodes.length > 0 && (
-        <p className="text-[11px] text-text-muted mb-2 text-right">
+        <p className="text-[0.8125rem] text-text-muted mb-2 text-right">
           Updating…
         </p>
       )}

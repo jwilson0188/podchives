@@ -17,8 +17,15 @@ export function episodeCatalogCacheKey(
   return `${archive ?? ""}|${status ?? "all"}`;
 }
 
+/**
+ * Bump when the cached shape or its formatting changes, so browsers holding
+ * an old payload don't render stale values (e.g. epoch-0 publish dates) in
+ * place of freshly-corrected ones.
+ */
+const CACHE_VERSION = "v2";
+
 function sessionKey(key: string): string {
-  return `episodes:${key}`;
+  return `episodes:${CACHE_VERSION}:${key}`;
 }
 
 export function getCachedEpisodeCatalog(

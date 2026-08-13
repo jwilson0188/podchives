@@ -16,27 +16,27 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6 pb-5 border-b border-border",
+        "mb-7 flex flex-col gap-4 md:flex-row md:items-start md:justify-between",
         className,
       )}
     >
       <div className="min-w-0 flex-1">
         {eyebrow && (
-          <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted mb-2 font-medium break-words">
+          <p className="mb-1 text-[0.8125rem] text-ink-muted break-words">
             {eyebrow}
-          </div>
+          </p>
         )}
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight text-text-primary break-words [overflow-wrap:anywhere]">
+        <h1 className="title-page break-words [overflow-wrap:anywhere]">
           {title}
         </h1>
         {description && (
-          <p className="text-sm text-text-muted mt-1.5 max-w-2xl break-words">
+          <p className="mt-2 max-w-[60ch] text-[0.9375rem] leading-relaxed text-ink-secondary break-words">
             {description}
           </p>
         )}
       </div>
       {actions && (
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap w-full md:w-auto">
+        <div className="flex w-full flex-shrink-0 flex-wrap items-center gap-2 md:w-auto md:justify-end md:pt-1">
           {actions}
         </div>
       )}

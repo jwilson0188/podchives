@@ -1,5 +1,10 @@
 import { cn } from "@/lib/utils";
 
+/**
+ * A single metric. The number is the point — the label sits quietly above it
+ * in sentence case, and colour is used only when the status actually differs
+ * from neutral.
+ */
 export function StatCard({
   label,
   value,
@@ -15,12 +20,12 @@ export function StatCard({
   icon?: React.ReactNode;
   href?: string;
 }) {
-  const accentRing: Record<string, string> = {
-    default: "",
-    cyan: "after:bg-cyan",
-    success: "after:bg-success",
-    warn: "after:bg-warn",
-    danger: "after:bg-danger",
+  const valueTone: Record<string, string> = {
+    default: "text-ink",
+    cyan: "text-ink",
+    success: "text-ink",
+    warn: "text-caution",
+    danger: "text-critical",
   };
 
   const Tag: any = href ? "a" : "div";
@@ -28,21 +33,23 @@ export function StatCard({
     <Tag
       {...(href ? { href } : {})}
       className={cn(
-        "card card-hover p-5 relative overflow-hidden block",
-        "after:content-[''] after:absolute after:left-0 after:top-0 after:bottom-0 after:w-[2px]",
-        accentRing[accent ?? "default"],
+        "card p-4 block",
+        href && "card-hover cursor-pointer",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-[11px] uppercase tracking-widest text-text-muted font-medium">
-          {label}
-        </div>
-        {icon && <div className="text-text-muted">{icon}</div>}
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[0.8125rem] text-ink-secondary">{label}</span>
+        {icon && <span className="text-ink-muted">{icon}</span>}
       </div>
-      <div className="mt-2 text-3xl font-semibold tracking-tight text-text-primary tabular-nums">
+      <div
+        className={cn(
+          "mt-1.5 text-[1.75rem] font-semibold tracking-[-0.02em] tabular",
+          valueTone[accent ?? "default"],
+        )}
+      >
         {value}
       </div>
-      {hint && <div className="mt-1 text-xs text-text-dim">{hint}</div>}
+      {hint && <div className="mt-0.5 text-[0.8125rem] text-ink-muted">{hint}</div>}
     </Tag>
   );
 }

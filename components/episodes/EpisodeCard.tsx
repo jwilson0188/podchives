@@ -18,7 +18,7 @@ export function EpisodeCard({ episode }: { episode: DemoEpisode }) {
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
-          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 text-white text-[11px] font-mono tabular-nums">
+          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 text-white text-[0.8125rem] font-mono tabular-nums">
             {formatDuration(episode.durationSeconds)}
           </div>
           <div className="absolute top-2 left-2">
@@ -29,7 +29,7 @@ export function EpisodeCard({ episode }: { episode: DemoEpisode }) {
           <h3 className="font-semibold text-sm text-text-primary line-clamp-2 group-hover:text-accent transition-colors">
             {episode.episodeTitle}
           </h3>
-          <div className="mt-2 text-[11px] text-text-muted font-mono">
+          <div className="mt-2 text-[0.8125rem] text-text-muted font-mono">
             {formatDate(episode.publishDate)}
             {episode.episodeNumber != null && <> · ep.{episode.episodeNumber}</>}
           </div>

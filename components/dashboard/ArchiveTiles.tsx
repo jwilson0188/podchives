@@ -45,7 +45,7 @@ export function ArchiveTiles({ archives }: { archives: PodcastView[] }) {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-semibold truncate">{a.name}</div>
-                <div className="text-[11px] text-text-muted mt-0.5">
+                <div className="text-[0.8125rem] text-text-muted mt-0.5">
                   {a.searchableCount}/{a.episodeCount} searchable · {pct}%
                 </div>
                 <div className="mt-2 h-1 rounded-full bg-bg-elevated overflow-hidden">
@@ -54,7 +54,7 @@ export function ArchiveTiles({ archives }: { archives: PodcastView[] }) {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <div className="text-[10px] text-text-dim mt-1">
+                <div className="text-[0.75rem] text-text-dim mt-1">
                   synced {formatRelativeDate(a.lastSyncedAt)}
                 </div>
               </div>

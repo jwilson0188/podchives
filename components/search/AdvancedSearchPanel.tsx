@@ -174,14 +174,14 @@ export function AdvancedSearchPanel() {
             placeholder="Describe what you're looking for. Example: any moment where the host pushes back on a guest's claim about distribution being free."
             className="input font-mono text-sm leading-relaxed min-h-[120px]"
           />
-          <p className="mt-2 text-[11px] text-text-muted">
+          <p className="mt-2 text-[0.8125rem] text-text-muted">
             Semantic search finds meaning, not just exact words. Sidebar filters
             (archive, platform, date) apply to every search.
           </p>
         </div>
 
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-text-muted mb-2">
+          <div className="text-[0.75rem] text-text-muted mb-2">
             Search mode
           </div>
           <div className="grid sm:grid-cols-3 gap-3">

@@ -12,7 +12,6 @@ export default async function SourcesPage() {
     <div>
       <ScrollToHash id="add-source" />
       <PageHeader
-        eyebrow="archive // sources"
         title="Sources"
         description="Connect YouTube channels, playlists, videos, or podcast RSS feeds. Manual upload and Patreon are coming soon."
       />
@@ -24,14 +23,14 @@ export default async function SourcesPage() {
         </div>
 
         <div className="order-2 lg:order-1">
-          <h2 className="text-sm font-semibold tracking-tight mb-3 text-text-muted uppercase tracking-widest text-[11px]">
+          <h2 className="text-sm font-semibold tracking-tight mb-3 text-text-muted text-[0.8125rem]">
             Connected ({sources.length})
           </h2>
           <div className="space-y-3 mb-8">
             <SourcesList initial={sources} />
           </div>
 
-          <h2 className="text-sm font-semibold tracking-tight mb-3 text-text-muted uppercase tracking-widest text-[11px]">
+          <h2 className="text-sm font-semibold tracking-tight mb-3 text-text-muted text-[0.8125rem]">
             Coming soon
           </h2>
           <div className="grid sm:grid-cols-2 gap-3">

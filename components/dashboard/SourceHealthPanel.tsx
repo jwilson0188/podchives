@@ -57,7 +57,7 @@ export function SourceHealthPanel({ sources }: { sources: SourceView[] }) {
                 <div className="text-sm font-medium truncate">
                   {s.sourceName}
                 </div>
-                <div className="text-[11px] text-text-muted">
+                <div className="text-[0.8125rem] text-text-muted">
                   {s.episodesFound} episodes
                   {s.lastSyncedAt && (
                     <> · synced {formatRelativeDate(s.lastSyncedAt)}</>
@@ -67,7 +67,7 @@ export function SourceHealthPanel({ sources }: { sources: SourceView[] }) {
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
                 <StatusBadge status={s.syncStatus} />
                 {s.autoSync && (
-                  <span className="text-[9px] uppercase tracking-wider text-accent">
+                  <span className="text-[0.75rem] text-accent">
                     auto
                   </span>
                 )}

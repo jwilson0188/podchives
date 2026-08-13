@@ -35,9 +35,9 @@ export function ProcessingJobRow({ job }: { job: DemoProcessingJob }) {
               defaultOpen={false}
               className="mt-2 border-border/60 bg-bg-subtle/50"
               headerClassName="px-2 py-1.5"
-              contentClassName="px-2 pb-2 pt-0 border-t-0 text-[11px] text-text-muted font-mono break-all"
+              contentClassName="px-2 pb-2 pt-0 border-t-0 text-[0.8125rem] text-text-muted font-mono break-all"
               title={
-                <span className="text-[11px] text-text-muted font-mono">
+                <span className="text-[0.8125rem] text-text-muted font-mono">
                   {job.podcastName} · {job.jobType.replace(/_/g, " ")}
                 </span>
               }
@@ -46,7 +46,7 @@ export function ProcessingJobRow({ job }: { job: DemoProcessingJob }) {
               {metaLine}
             </Collapsible>
           ) : (
-            <div className="text-[11px] text-text-muted font-mono mt-0.5 break-words [overflow-wrap:anywhere]">
+            <div className="text-[0.8125rem] text-text-muted font-mono mt-0.5 break-words [overflow-wrap:anywhere]">
               {job.podcastName} · {job.jobType.replace(/_/g, " ")}
             </div>
           )}
@@ -67,7 +67,7 @@ export function ProcessingJobRow({ job }: { job: DemoProcessingJob }) {
         }
       />
 
-      <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[11px] text-text-muted font-mono">
+      <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[0.8125rem] text-text-muted font-mono">
         <span className="tabular-nums">{job.progressPercent}%</span>
         <span className="break-words">
           {job.completedAt
@@ -84,7 +84,7 @@ export function ProcessingJobRow({ job }: { job: DemoProcessingJob }) {
 
       {(isFailed || job.retryCount > 0) && (
         <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <span className="text-[11px] text-text-muted font-mono">
+          <span className="text-[0.8125rem] text-text-muted font-mono">
             {job.retryCount > 0 && `retries: ${job.retryCount}`}
           </span>
           {isFailed && (

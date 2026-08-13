@@ -41,8 +41,8 @@ export function SearchResultCard({
   return (
     <article className="card card-hover p-4 lg:p-5 group">
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-text-muted font-medium">
-          <span className="text-accent">{result.podcastName}</span>
+        <div className="flex items-center gap-2 text-[0.8125rem] text-text-muted font-medium">
+          <span className="text-ink-secondary">{result.podcastName}</span>
           <span>·</span>
           <span>{result.sourcePlatform}</span>
           <span>·</span>
@@ -60,7 +60,7 @@ export function SearchResultCard({
         )}
       </h3>
 
-      <div className="bg-bg-subtle border-l-2 border-accent rounded-r-md px-3 py-2.5 mb-3">
+      <div className="border-l-2 border-line-strong pl-4 py-0.5 mb-3">
         <p
           className="text-[15px] leading-relaxed text-text-primary"
           dangerouslySetInnerHTML={{

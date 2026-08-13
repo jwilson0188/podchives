@@ -12,7 +12,6 @@ export default async function ArchivesPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="library // archives"
         title="Archives"
         description="Each archive is a podcast or show. An archive can be fed by one or many sources."
         actions={
@@ -71,7 +70,7 @@ export default async function ArchivesPage() {
                   <Stat label="Episodes" value={p.episodeCount} />
                   <Stat label="Searchable" value={p.searchableCount} />
                 </div>
-                <div className="mt-auto flex items-center justify-between text-[11px] text-text-dim">
+                <div className="mt-auto flex items-center justify-between text-[0.8125rem] text-text-dim">
                   <div className="flex items-center gap-2">
                     <StatusBadge
                       status={
@@ -99,7 +98,7 @@ export default async function ArchivesPage() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-bg-subtle rounded-md border border-border px-3 py-2">
-      <div className="text-[10px] uppercase tracking-widest text-text-muted">
+      <div className="text-[0.75rem] text-text-muted">
         {label}
       </div>
       <div className="text-lg font-semibold tabular-nums">{value}</div>

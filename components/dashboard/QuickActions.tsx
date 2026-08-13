@@ -117,7 +117,7 @@ export function QuickActions() {
             </div>
             <div className="min-w-0">
               <div className="text-sm font-medium truncate">{a.label}</div>
-              <div className="text-[10px] text-text-muted truncate">{a.desc}</div>
+              <div className="text-[0.75rem] text-text-muted truncate">{a.desc}</div>
             </div>
           </Link>
         ))}
