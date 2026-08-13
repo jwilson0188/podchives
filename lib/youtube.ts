@@ -10,28 +10,37 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
-import os from "node:os";
 
 /**
- * yt-dlp writes refreshed cookies back to the --cookies file when the session
- * ends. Render mounts secret files read-only (/etc/secrets), which makes
- * yt-dlp crash with "Read-only file system". Copy the cookies to a writable
- * temp path on first use and hand yt-dlp that instead.
+ * yt-dlp refreshes YouTube session cookies back to the --cookies file after
+ * each run. Render mounts secret files read-only (/etc/secrets), so we seed
+ * once from the secret into a writable persist file and always hand yt-dlp
+ * that path. Subsequent runs reuse the refreshed cookies — no hourly re-export.
+ *
+ * Important: use a dedicated Google account, export once, then never open
+ * YouTube in a browser with that account (session rotation invalidates exports).
  */
+function cookiesPersistPath(): string {
+  return (
+    process.env.YOUTUBE_COOKIES_PERSIST_FILE ??
+    path.join(process.cwd(), "storage", "youtube-cookies.txt")
+  );
+}
+
 function resolveCookiesFile(): string | null {
+  if (process.env.YOUTUBE_COOKIES_FROM_BROWSER) return null;
+
+  const persist = cookiesPersistPath();
   const src = process.env.YOUTUBE_COOKIES_FILE;
-  if (!src || !fs.existsSync(src)) return null;
-  const writable = path.join(os.tmpdir(), "podchives-cookies.txt");
+
   try {
-    const srcMtime = fs.statSync(src).mtimeMs;
-    const writableExists = fs.existsSync(writable);
-    const writableStale =
-      !writableExists ||
-      fs.statSync(writable).mtimeMs < srcMtime;
-    if (writableStale) fs.copyFileSync(src, writable);
-    return writable;
+    if (!fs.existsSync(persist) && src && fs.existsSync(src)) {
+      fs.mkdirSync(path.dirname(persist), { recursive: true });
+      fs.copyFileSync(src, persist);
+    }
+    return fs.existsSync(persist) ? persist : null;
   } catch {
-    return src;
+    return src && fs.existsSync(src) ? src : null;
   }
 }
 
@@ -184,6 +193,10 @@ export async function fetchYouTubeChannelProfile(
 /** Shared flags for yt-dlp. Cookies + a JS runtime are required for reliable
  * logged-in YouTube downloads as of late 2025 (see Dockerfile / yt-dlp EJS). */
 function buildYtDlpBaseArgs(): string[] {
+  const sleepSec = Math.max(
+    0,
+    Number(process.env.YOUTUBE_YTDLP_SLEEP_INTERVAL ?? "1") || 0,
+  );
   const args = [
     "--retries",
     "3",
@@ -198,6 +211,10 @@ function buildYtDlpBaseArgs(): string[] {
     "--remote-components",
     "ejs:github",
   ];
+
+  if (sleepSec > 0) {
+    args.push("--sleep-interval", String(sleepSec), "--max-sleep-interval", "5");
+  }
 
   const cookiesFile = resolveCookiesFile();
   const cookiesBrowser = process.env.YOUTUBE_COOKIES_FROM_BROWSER;

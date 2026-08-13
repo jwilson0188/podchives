@@ -12,6 +12,7 @@ import fs from "node:fs";
 import {
   completePipelineJob,
   getNextQueuedJob,
+  hasFailedTranscription,
   markJobFailed,
   updateJobProgress,
   updateJobStatus,
@@ -152,10 +153,27 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
   const ep = await db.episode.findUnique({ where: { id: episodeId } });
   if (!ep) throw new Error(`Episode ${episodeId} not found`);
 
-  // Feed transcript available — skip the ~50 MB MP3 download entirely.
-  if (ep.transcriptOriginalUrl) {
-    await updateJobProgress(jobId, 100);
-    return;
+  // The fast-paths below skip the ~50 MB MP3 because a cheaper transcript
+  // source is expected to work. Once transcription has actually failed for
+  // this episode that assumption is dead, and skipping again would leave
+  // Whisper with no audio — bouncing the episode between `download` and
+  // `transcription` forever. So: skip only while no attempt has failed.
+  const transcriptionAlreadyFailed = await hasFailedTranscription(episodeId);
+
+  if (!transcriptionAlreadyFailed) {
+    // Feed transcript available — skip the ~50 MB MP3 download entirely.
+    if (ep.transcriptOriginalUrl) {
+      await updateJobProgress(jobId, 100);
+      return;
+    }
+
+    const { shouldSkipYouTubeAudioDownload } = await import(
+      "@/lib/transcriptionConfig"
+    );
+    if (shouldSkipYouTubeAudioDownload(ep.sourcePlatform)) {
+      await updateJobProgress(jobId, 100);
+      return;
+    }
   }
 
   await updateJobStatus(jobId, "downloading", { progressPercent: 5 });

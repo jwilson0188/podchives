@@ -14,6 +14,7 @@ import {
 import { shouldTryRssFeedTranscript, shouldTryYouTubeCaptions } from "@/lib/transcriptionConfig";
 import {
   markJobFailed,
+  queueAudioFallbackDownload,
   updateJobProgress,
   updateJobStatus,
 } from "@/lib/queue";
@@ -69,7 +70,21 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
     await updateJobProgress(jobId, 100);
     return { segments: resolved.segments.length };
   } catch (err: any) {
-    await markJobFailed(jobId, err?.message ?? "Transcription failed");
+    const reason = err?.message ?? "Transcription failed";
+
+    // Captions / feed transcript were expected to cover this episode, so the
+    // pipeline skipped the audio download. They didn't pan out — fall back to
+    // fetching audio for Whisper instead of killing the episode outright.
+    if (!ep.audioFilePath) {
+      const queued = await queueAudioFallbackDownload(episodeId);
+      if (queued) {
+        const msg = `${reason} — queued audio download so Whisper can retry`;
+        await markJobFailed(jobId, msg);
+        throw new Error(msg);
+      }
+    }
+
+    await markJobFailed(jobId, reason);
     throw err;
   }
 }

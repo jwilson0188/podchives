@@ -30,10 +30,10 @@ services:
       - key: MAX_JOBS_PER_RUN
         value: "15"
       # Run up to N jobs in parallel. Most jobs wait on network I/O (yt-dlp,
-      # OpenAI), so this drains the backlog much faster. Lower it if YouTube
-      # rate-limits parallel downloads or the instance runs hot.
+      # OpenAI), so this drains the backlog much faster. Lower to 2–3 if YouTube
+      # rate-limits or cookies expire quickly during backfill.
       - key: WORKER_CONCURRENCY
-        value: "8"
+        value: "3"
       - key: MAX_EPISODES_QUEUED_PER_SYNC
         value: "50"
       - key: MAX_EPISODES_QUEUED_PER_SYNC_RSS
