@@ -27,20 +27,75 @@ function cookiesPersistPath(): string {
   );
 }
 
+/** Log the cookie decision once per process, not once per yt-dlp call. */
+let cookieStateLogged = false;
+
+function logCookieState(msg: string, level: "warn" | "log" = "log") {
+  if (cookieStateLogged || process.env.NODE_ENV === "test") return;
+  cookieStateLogged = true;
+  console[level](`[youtube] ${msg}`);
+}
+
+/**
+ * Resolve which cookie jar to hand yt-dlp, if any.
+ *
+ * Returning null is not benign: without cookies YouTube refuses most requests
+ * from datacenter IPs with "Sign in to confirm you're not a bot", and the whole
+ * ingestion pipeline fails one episode at a time. This used to happen silently,
+ * so every branch here says what it decided and why.
+ */
 function resolveCookiesFile(): string | null {
-  if (process.env.YOUTUBE_COOKIES_FROM_BROWSER) return null;
+  if (process.env.YOUTUBE_COOKIES_FROM_BROWSER) {
+    logCookieState(
+      `using --cookies-from-browser ${process.env.YOUTUBE_COOKIES_FROM_BROWSER}`,
+    );
+    return null;
+  }
 
   const persist = cookiesPersistPath();
   const src = process.env.YOUTUBE_COOKIES_FILE;
 
   try {
-    if (!fs.existsSync(persist) && src && fs.existsSync(src)) {
+    if (!fs.existsSync(persist)) {
+      if (!src) {
+        logCookieState(
+          "NO COOKIES: neither YOUTUBE_COOKIES_FILE nor " +
+            "YOUTUBE_COOKIES_FROM_BROWSER is set. YouTube will bot-check most " +
+            "requests. (Common mistake: naming the var YOUTUBE_COOKIES_FROM_FILE.)",
+          "warn",
+        );
+        return null;
+      }
+      if (!fs.existsSync(src)) {
+        logCookieState(
+          `NO COOKIES: YOUTUBE_COOKIES_FILE points at ${src}, which does not ` +
+            "exist. On Render the secret file must be named so it mounts at " +
+            "exactly that path.",
+          "warn",
+        );
+        return null;
+      }
       fs.mkdirSync(path.dirname(persist), { recursive: true });
       fs.copyFileSync(src, persist);
+      logCookieState(`seeded writable cookie jar from ${src} -> ${persist}`);
+    } else {
+      logCookieState(`reusing cookie jar at ${persist}`);
     }
     return fs.existsSync(persist) ? persist : null;
-  } catch {
-    return src && fs.existsSync(src) ? src : null;
+  } catch (err) {
+    if (src && fs.existsSync(src)) {
+      logCookieState(
+        `could not create a writable copy (${(err as Error).message}); using ` +
+          `${src} read-only — yt-dlp cannot refresh cookies, so they will age out`,
+        "warn",
+      );
+      return src;
+    }
+    logCookieState(
+      `NO COOKIES: ${(err as Error).message}`,
+      "warn",
+    );
+    return null;
   }
 }
 
@@ -241,6 +296,26 @@ export function parseYtDlpProgress(line: string): number | null {
   return null;
 }
 
+/**
+ * yt-dlp prints warnings before the failure, so the head of stderr is usually
+ * something harmless like "No title found in player responses". Stored verbatim,
+ * that is what shows up in the queue and in error summaries, hiding the real
+ * cause. Prefer the ERROR line; fall back to the raw tail.
+ */
+export function summariseYtDlpError(stderr: string, code: number | null): string {
+  const lines = stderr.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const errorLine = [...lines].reverse().find((l) => /^ERROR:/i.test(l));
+  if (errorLine) {
+    // Strip yt-dlp's doc links; they bloat the row without adding signal.
+    return errorLine
+      .replace(/\s*See\s+https?:\/\/\S+.*$/i, "")
+      .replace(/\s*Also see\s+https?:\/\/\S+.*$/i, "")
+      .trim();
+  }
+  const tail = lines.slice(-2).join(" ");
+  return tail || `yt-dlp exited with code ${code}`;
+}
+
 export function runYtDlp(
   args: string[],
   opts?: { onStderrLine?: (line: string) => void },
@@ -271,7 +346,7 @@ export function runYtDlp(
     );
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(err.trim() || `yt-dlp exited with code ${code}`));
+        reject(new Error(summariseYtDlpError(err, code)));
         return;
       }
       resolve(out);
