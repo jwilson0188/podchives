@@ -99,20 +99,15 @@ export function SearchResultsView({
   return (
     <div className="space-y-3 min-w-0">
       {query && (
-        <div className="text-xs text-text-muted font-mono">
-          <span className="text-text-dim">query →</span>{" "}
-          <span className="text-text-primary">&ldquo;{query}&rdquo;</span>{" "}
-          <span className="text-text-dim">·</span> {results.length} match
-          {results.length === 1 ? "" : "es"}
+        <div className="text-[0.8125rem] text-ink-secondary">
+          <span className="tabular font-medium text-ink">{results.length}</span>{" "}
+          {results.length === 1 ? "match" : "matches"} for{" "}
+          <span className="text-ink">&ldquo;{query}&rdquo;</span>
           {filterBits.length > 0 && (
-            <>
-              {" "}
-              <span className="text-text-dim">·</span>{" "}
-              <span className="text-cyan">{filterBits.join(" · ")}</span>
-            </>
+            <span className="text-ink-muted"> · {filterBits.join(" · ")}</span>
           )}
           {refreshing && results.length > 0 && (
-            <span className="text-text-dim ml-2">· updating…</span>
+            <span className="text-ink-muted"> · updating…</span>
           )}
         </div>
       )}
