@@ -32,20 +32,25 @@ services:
       # Run up to N jobs in parallel. Most jobs wait on network I/O (yt-dlp,
       # OpenAI), so this drains the backlog much faster. Lower to 2–3 if YouTube
       # rate-limits or cookies expire quickly during backfill.
+      # Sized for the `starter` plan below (512 MB). Jobs that shell out to
+      # yt-dlp cost ~60 MB each on top of Node's ~120 MB baseline, so ten
+      # simultaneous yt-dlp jobs would still be tight — in practice the mix
+      # includes embedding/indexing work that never spawns a subprocess.
+      # If the container starts OOM-restarting, lower this first.
       - key: WORKER_CONCURRENCY
-        value: "3"
+        value: "10"
       - key: MAX_EPISODES_QUEUED_PER_SYNC
-        value: "50"
+        value: "300"
       - key: MAX_EPISODES_QUEUED_PER_SYNC_RSS
-        value: "100"
+        value: "300"
       - key: MAX_QUEUED_EPISODES_PER_SOURCE
-        value: "50"
+        value: "300"
       - key: MAX_QUEUED_EPISODES_PER_SOURCE_RSS
-        value: "75"
+        value: "300"
       - key: MAX_INFLIGHT_EPISODES_PER_SOURCE
-        value: "15"
+        value: "50"
       - key: MAX_INFLIGHT_EPISODES_PER_SOURCE_RSS
-        value: "20"
+        value: "50"
       # Auto-sync is controlled per-source in the app (Sources page → the
       # "auto-sync" toggle on each source). Every source ships OFF, so no
       # backfill starts until you flip one on. AUTO_SYNC_ENABLED is just a
@@ -53,7 +58,7 @@ services:
       - key: AUTO_SYNC_ENABLED
         value: "true"
       - key: AUTO_SYNC_INTERVAL_MINUTES
-        value: "360"
+        value: "30"
       # Render mounts secret files at /etc/secrets/<filename> at runtime.
       - key: YOUTUBE_COOKIES_FILE
         value: /etc/secrets/cookies.txt

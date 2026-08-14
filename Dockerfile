@@ -12,6 +12,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
       ffmpeg \
       python3 \
+      python3-pip \
       curl \
       ca-certificates \
       unzip \
@@ -19,6 +20,14 @@ RUN apt-get update \
       -o /usr/local/bin/yt-dlp \
   && chmod a+rx /usr/local/bin/yt-dlp \
   && rm -rf /var/lib/apt/lists/*
+
+# curl-cffi lets yt-dlp impersonate a real browser's TLS/JA3 fingerprint.
+# Without it yt-dlp logs "no impersonate target is available" on every call and
+# YouTube treats the request as a bot — which it does aggressively for requests
+# originating from datacenter IPs like Render's, even when the same request
+# succeeds from a residential connection.
+RUN pip3 install --break-system-packages --no-cache-dir "curl-cffi>=0.5.10" \
+  && yt-dlp --version
 
 # YouTube now requires an external JavaScript runtime to solve its JS
 # challenges (n-param / signature). Without one, format availability is
