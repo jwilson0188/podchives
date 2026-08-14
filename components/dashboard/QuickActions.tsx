@@ -69,7 +69,7 @@ const ACTIONS = [
     ),
   },
   {
-    href: "/advanced-search",
+    href: "/search?mode=hybrid",
     label: "Advanced",
     desc: "Filters & modes",
     icon: (

@@ -9,7 +9,7 @@ import { NavIcon } from "./NavIcon";
 /** Grouped so the list reads as sections rather than ten equal items. */
 const GROUPS: { heading: string | null; hrefs: string[] }[] = [
   { heading: null, hrefs: ["/dashboard"] },
-  { heading: "Find", hrefs: ["/search", "/advanced-search"] },
+  { heading: "Find", hrefs: ["/search"] },
   { heading: "Library", hrefs: ["/archives", "/episodes"] },
   {
     heading: "Pipeline",

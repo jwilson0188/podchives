@@ -11,7 +11,6 @@ export function FilterPanel({
   showModeToggle = true,
 }: {
   archives?: ArchiveOption[];
-  /** Hide mode toggle on Advanced Search — that page has its own mode picker. */
   showModeToggle?: boolean;
 }) {
   const router = useRouter();
