@@ -32,11 +32,13 @@ services:
       # Run up to N jobs in parallel. Most jobs wait on network I/O (yt-dlp,
       # OpenAI), so this drains the backlog much faster. Lower to 2–3 if YouTube
       # rate-limits or cookies expire quickly during backfill.
-      # NOTE: each parallel job spawns yt-dlp (a Python process, ~60 MB).
-      # 50 of them needs several GB; the `starter` plan below has 512 MB, so
-      # this will OOM-restart the container unless the plan is upgraded.
+      # Sized for the `starter` plan below (512 MB). Jobs that shell out to
+      # yt-dlp cost ~60 MB each on top of Node's ~120 MB baseline, so ten
+      # simultaneous yt-dlp jobs would still be tight — in practice the mix
+      # includes embedding/indexing work that never spawns a subprocess.
+      # If the container starts OOM-restarting, lower this first.
       - key: WORKER_CONCURRENCY
-        value: "50"
+        value: "10"
       - key: MAX_EPISODES_QUEUED_PER_SYNC
         value: "300"
       - key: MAX_EPISODES_QUEUED_PER_SYNC_RSS
