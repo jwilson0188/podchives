@@ -2,6 +2,17 @@ import { PageHeader } from "@/components/ui/PageHeader";
 
 export const metadata = { title: "Settings" };
 
+// Mirrors the defaults in scripts/dev-worker.ts so this page reports what the
+// worker will actually do, rather than a hardcoded description.
+const workerConcurrency = Math.max(
+  1,
+  Number(process.env.WORKER_CONCURRENCY) || 1,
+);
+const autoSyncEnabled =
+  (process.env.AUTO_SYNC_ENABLED ?? "true").toLowerCase() !== "false";
+const autoSyncMinutes =
+  Number(process.env.AUTO_SYNC_INTERVAL_MINUTES) || 360;
+
 export default function SettingsPage() {
   const env = (k: string) => process.env[k];
   const hasKey = (k: string) => Boolean(env(k));
@@ -78,18 +89,22 @@ export default function SettingsPage() {
           />
           <SettingRow
             label="Concurrency"
-            value="up to 10 jobs in parallel"
+            value={`up to ${workerConcurrency} jobs in parallel`}
             hint="Most jobs wait on network I/O (downloads, OpenAI), so the worker runs several at once to drain the backlog faster."
           />
           <SettingRow
             label="Auto-sync"
-            value="per-source — every ~6h"
-            hint="Toggle auto-sync on any source (Sources page). When on, the worker re-checks it on a schedule, ingests newly-published videos, and re-queues backlog episodes until the whole channel is processed."
+            value={
+              autoSyncEnabled
+                ? `per-source — every ${autoSyncMinutes} min`
+                : "disabled globally"
+            }
+            hint="Toggle auto-sync on any source (Sources page). When on, the worker re-checks it on that interval, ingests newly-published videos, and re-queues backlog episodes until the whole channel is processed."
           />
           <SettingRow
             label="Overnight scheduler"
-            value="off — not used"
-            hint="The worker runs continuously, so the scheduled-window mode is disabled. Failed jobs are retried manually from the Processing Queue."
+            value="not used on this runner"
+            hint="Scheduled-window mode belongs to a separate entry point (npm run process-queue). The deployed worker runs continuously, so OVERNIGHT_PROCESSING_ENABLED and MAX_JOBS_PER_RUN have no effect here."
           />
         </Section>
 
