@@ -123,3 +123,6 @@ main()
     process.exit(1);
   })
   .then(() => process.exit(0));
+
+// Marks this file a module so its top-level names stay scoped to it.
+export {};

@@ -29,6 +29,29 @@ export type SearchMode = "keyword" | "semantic" | "hybrid";
 export type SearchResult = DemoSearchResult;
 
 /**
+ * Express relevance relative to the strongest hit in the same result set.
+ *
+ * The three modes score on incompatible scales — Postgres `ts_rank` is roughly
+ * 0.06–0.1 for a strong keyword match, cosine similarity runs 0.6–0.9, and RRF
+ * is arbitrary — yet all three were rendered as an absolute percentage. A top
+ * keyword result therefore displayed as "9% match", and switching modes made
+ * relevance appear to swing wildly when result quality had not changed.
+ *
+ * Relative scoring is meaningful within a page of results (this hit versus the
+ * best one) and behaves consistently across modes.
+ */
+function withRelativeRelevance<T extends { relevanceScore: number }>(
+  results: T[],
+): T[] {
+  const best = results.reduce((m, r) => Math.max(m, r.relevanceScore), 0);
+  if (best <= 0) return results;
+  return results.map((r) => ({
+    ...r,
+    relevanceScore: Math.max(0, Math.min(1, r.relevanceScore / best)),
+  }));
+}
+
+/**
  * Phase-4 keyword search over transcript_segments.
  * Uses Postgres FTS — we wire the query in raw SQL so we can control rank.
  */
@@ -79,26 +102,28 @@ export async function keywordSearch(
     ...filterParams,
   );
 
-  return rows.map((r) => ({
-    id: r.id,
-    podcastId: r.podcast_id,
-    podcastName: r.podcast_name,
-    episodeId: r.episode_id,
-    episodeTitle: r.episode_title,
-    episodeNumber: r.episode_number,
-    publishDate: r.publish_date,
-    startTimeSeconds: Number(r.start_time_seconds),
-    endTimeSeconds: Number(r.end_time_seconds),
-    transcriptText: r.transcript_text,
-    sourceUrl: r.source_url,
-    sourcePlatform: r.source_platform,
-    relevanceScore: Math.min(1, Number(r.rank) || 0),
-    thumbnailUrl: resolveThumbnailUrl({
-      localPath: r.thumbnail_local_path,
-      originalUrl: r.thumbnail_original_url,
-      externalId: r.external_id,
-    }),
-  }));
+  return withRelativeRelevance(
+    rows.map((r) => ({
+      id: r.id,
+      podcastId: r.podcast_id,
+      podcastName: r.podcast_name,
+      episodeId: r.episode_id,
+      episodeTitle: r.episode_title,
+      episodeNumber: r.episode_number,
+      publishDate: r.publish_date,
+      startTimeSeconds: Number(r.start_time_seconds),
+      endTimeSeconds: Number(r.end_time_seconds),
+      transcriptText: r.transcript_text,
+      sourceUrl: r.source_url,
+      sourcePlatform: r.source_platform,
+      relevanceScore: Number(r.rank) || 0,
+      thumbnailUrl: resolveThumbnailUrl({
+        localPath: r.thumbnail_local_path,
+        originalUrl: r.thumbnail_original_url,
+        externalId: r.external_id,
+      }),
+    })),
+  );
 }
 
 /**
@@ -159,26 +184,28 @@ export async function semanticSearch(
     ...filterParams,
   );
 
-  return rows.map((r) => ({
-    id: r.id,
-    podcastId: r.podcast_id,
-    podcastName: r.podcast_name,
-    episodeId: r.episode_id,
-    episodeTitle: r.episode_title,
-    episodeNumber: r.episode_number,
-    publishDate: r.publish_date,
-    startTimeSeconds: Number(r.start_time_seconds),
-    endTimeSeconds: Number(r.end_time_seconds),
-    transcriptText: r.transcript_text,
-    sourceUrl: r.source_url,
-    sourcePlatform: r.source_platform,
-    relevanceScore: Math.max(0, Math.min(1, Number(r.similarity) || 0)),
-    thumbnailUrl: resolveThumbnailUrl({
-      localPath: r.thumbnail_local_path,
-      originalUrl: r.thumbnail_original_url,
-      externalId: r.external_id,
-    }),
-  }));
+  return withRelativeRelevance(
+    rows.map((r) => ({
+      id: r.id,
+      podcastId: r.podcast_id,
+      podcastName: r.podcast_name,
+      episodeId: r.episode_id,
+      episodeTitle: r.episode_title,
+      episodeNumber: r.episode_number,
+      publishDate: r.publish_date,
+      startTimeSeconds: Number(r.start_time_seconds),
+      endTimeSeconds: Number(r.end_time_seconds),
+      transcriptText: r.transcript_text,
+      sourceUrl: r.source_url,
+      sourcePlatform: r.source_platform,
+      relevanceScore: Math.max(0, Number(r.similarity) || 0),
+      thumbnailUrl: resolveThumbnailUrl({
+        localPath: r.thumbnail_local_path,
+        originalUrl: r.thumbnail_original_url,
+        externalId: r.external_id,
+      }),
+    })),
+  );
 }
 
 /**
@@ -204,10 +231,12 @@ export async function hybridSearch(
     if (prev) prev.rrf += 1 / (k + i + 1);
     else scored.set(r.id, { ...r, rrf: 1 / (k + i + 1) });
   });
-  return Array.from(scored.values())
-    .sort((a, b) => b.rrf - a.rrf)
-    .slice(0, filters.limit ?? 50)
-    .map((r) => ({ ...r, relevanceScore: Math.min(1, r.rrf * 60) }));
+  return withRelativeRelevance(
+    Array.from(scored.values())
+      .sort((a, b) => b.rrf - a.rrf)
+      .slice(0, filters.limit ?? 50)
+      .map((r) => ({ ...r, relevanceScore: r.rrf })),
+  );
 }
 
 export async function saveSearchQuery(args: {
