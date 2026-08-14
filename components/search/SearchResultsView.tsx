@@ -21,7 +21,18 @@ export function SearchResultsView({
 }) {
   const searchParams = useSearchParams();
   const query = (searchParams.get("q") ?? "").trim();
-  const url = readSearchUrlParams(searchParams);
+
+  // readSearchUrlParams builds a new object on every render. Used directly as
+  // an effect dependency that meant: fetch -> setState -> re-render -> new
+  // object -> fetch again, roughly eight requests a second for as long as the
+  // page was open. Key the memo on the serialised params so identity only
+  // changes when the query string actually does.
+  const paramsKey = searchParams.toString();
+  const url = useMemo(
+    () => readSearchUrlParams(searchParams),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paramsKey],
+  );
 
   const cacheKey = useMemo(
     () =>
