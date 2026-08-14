@@ -102,7 +102,6 @@ export const PROCESSING_ORDER: JobType[] = [
 export const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: "grid" },
   { label: "Search", href: "/search", icon: "search" },
-  { label: "Advanced Search", href: "/advanced-search", icon: "filter" },
   { label: "Archives", href: "/archives", icon: "library" },
   { label: "Episodes", href: "/episodes", icon: "list" },
   { label: "Download Manager", href: "/download-manager", icon: "download" },
