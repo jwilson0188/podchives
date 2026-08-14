@@ -16,10 +16,55 @@ function parseVttTimestamp(raw: string): number {
   return 0;
 }
 
+const VTT_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&apos;": "'",
+  "&nbsp;": " ",
+};
+
+function decodeCaptionText(raw: string): string {
+  return raw
+    .replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g, (m) => VTT_ENTITIES[m] ?? m)
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+/**
+ * YouTube's auto-captions scroll: each cue repeats the tail of the previous one
+ * so the on-screen block reads continuously. Concatenating cues verbatim
+ * therefore duplicates most of the speech — measured at 1.8x on this archive,
+ * or 7.6 words/second against a natural speaking rate near 2.5.
+ *
+ * Drop the longest run of leading words in `next` that already terminates
+ * `prev`, comparing case- and punctuation-insensitively so "Word." and "word"
+ * still match.
+ */
+function stripLeadingOverlap(prev: string[], next: string[]): string[] {
+  const norm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+  const max = Math.min(prev.length, next.length);
+  for (let k = max; k > 0; k--) {
+    let same = true;
+    for (let j = 0; j < k; j++) {
+      if (norm(prev[prev.length - k + j]!) !== norm(next[j]!)) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return next.slice(k);
+  }
+  return next;
+}
+
 /** Parse WebVTT / YouTube auto-caption files into timed segments. */
 export function parseWebVtt(content: string): TranscriptSegment[] {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const segments: TranscriptSegment[] = [];
+  // Compare against a window of recent words, not just the last cue: rolling
+  // captions can repeat across two or three cues.
+  let recentWords: string[] = [];
   let i = 0;
 
   while (i < lines.length) {
@@ -40,17 +85,30 @@ export function parseWebVtt(content: string): TranscriptSegment[] {
           i++;
           continue;
         }
-        texts.push(next.replace(/<[^>]+>/g, "").trim());
+        // Inline karaoke timing tags (<00:00:11.120><c>) carry no words.
+        texts.push(decodeCaptionText(next.replace(/<[^>]+>/g, "")).trim());
         i++;
       }
-      const transcriptText = texts.join(" ").replace(/\s+/g, " ").trim();
-      if (transcriptText) {
-        segments.push({
-          startTimeSeconds: parseVttTimestamp(startRaw!),
-          endTimeSeconds: parseVttTimestamp(endRaw!),
-          transcriptText,
-          confidenceScore: null,
-        });
+
+      const rawText = texts.join(" ").replace(/\s+/g, " ").trim();
+      if (rawText) {
+        const fresh = stripLeadingOverlap(recentWords, rawText.split(" "));
+        const transcriptText = fresh.join(" ").trim();
+        if (transcriptText) {
+          recentWords = [...recentWords, ...fresh].slice(-60);
+          segments.push({
+            startTimeSeconds: parseVttTimestamp(startRaw!),
+            endTimeSeconds: parseVttTimestamp(endRaw!),
+            transcriptText,
+            confidenceScore: null,
+          });
+        } else if (segments.length > 0) {
+          // Entirely repeated cue — keep its time by extending the previous one
+          // rather than emitting an empty segment.
+          segments[segments.length - 1]!.endTimeSeconds = parseVttTimestamp(
+            endRaw!,
+          );
+        }
       }
       continue;
     }
