@@ -21,6 +21,7 @@ import {
 } from "./transcriptionConfig";
 import { transcribeFromRssFeed } from "./rssTranscripts";
 import { transcribeFromYouTubeCaptions } from "./youtubeCaptions";
+import { getTranscriptSegmentIds, persistTranscriptSegments, type SaveTranscriptArgs } from "./transcriptIntegrity";
 
 /** Stay under hosted Whisper upload limits (Groq ~25 MB, OpenAI 25 MB). */
 const WHISPER_SAFE_BYTES = 24 * 1024 * 1024;
@@ -331,7 +332,7 @@ export function segmentTranscript(
     }
     const merged: TranscriptSegment = {
       startTimeSeconds: cur.startTimeSeconds,
-      endTimeSeconds: s.endTimeSeconds,
+      endTimeSeconds: Math.max(cur.endTimeSeconds, s.endTimeSeconds),
       transcriptText: `${cur.transcriptText} ${s.transcriptText}`.trim(),
       confidenceScore:
         cur.confidenceScore != null && s.confidenceScore != null
@@ -354,59 +355,9 @@ export function segmentTranscript(
   return out;
 }
 
-export async function saveTranscriptSegments(args: {
-  episodeId: string;
-  podcastId: string;
-  sourceUrl: string;
-  sourcePlatform: string;
-  transcriptSourceType:
-    | "whisper_local"
-    | "whisper_api"
-    | "youtube_captions"
-    | "rss_feed"
-    | "manual";
-  segments: TranscriptSegment[];
-  replace?: boolean;
-}): Promise<number> {
+export async function saveTranscriptSegments(args: SaveTranscriptArgs): Promise<number> {
   const { getDb } = await import("./db");
-  const db = getDb();
-
-  if (args.replace) {
-    await db.transcriptSegment.deleteMany({
-      where: { episodeId: args.episodeId },
-    });
-  }
-
-  if (args.segments.length === 0) return 0;
-
-  const result = await db.transcriptSegment.createMany({
-    data: args.segments.map((s) => ({
-      episodeId: args.episodeId,
-      podcastId: args.podcastId,
-      startTimeSeconds: s.startTimeSeconds,
-      endTimeSeconds: s.endTimeSeconds,
-      transcriptText: s.transcriptText,
-      confidenceScore: s.confidenceScore ?? null,
-      sourceUrl: args.sourceUrl,
-      sourcePlatform: args.sourcePlatform,
-      transcriptSourceType: args.transcriptSourceType,
-    })),
-  });
-  return result.count;
-}
-
-export async function markEpisodeTranscribed(
-  episodeId: string,
-): Promise<void> {
-  const { getDb } = await import("./db");
-  const db = getDb();
-  await db.episode.update({
-    where: { id: episodeId },
-    data: {
-      isTranscribed: true,
-      transcriptStatus: "completed",
-    },
-  });
+  return persistTranscriptSegments(getDb(), args);
 }
 
 /** Convenience: transcribe + segment + persist in one call. */
@@ -422,6 +373,7 @@ export async function transcribeEpisode(args: {
     throw new Error(`Episode ${args.episodeId} has no audio or source URL`);
   }
 
+  const expectedSegmentIds = await getTranscriptSegmentIds(db, args.episodeId);
   const resolved = await resolveTranscription({
     episodeId: args.episodeId,
     audioFilePath: args.audioFilePath,
@@ -439,7 +391,7 @@ export async function transcribeEpisode(args: {
     transcriptSourceType: resolved.transcriptSourceType,
     segments: packed,
     replace: true,
+    expectedSegmentIds,
   });
-  await markEpisodeTranscribed(args.episodeId);
   return { segmentCount: packed.length, language: resolved.language };
 }

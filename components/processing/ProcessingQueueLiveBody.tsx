@@ -1,7 +1,7 @@
 "use client";
 
 import { ProcessingQueueTable } from "@/components/processing/ProcessingQueueTable";
-import { useLivePoll } from "@/hooks/useLivePoll";
+import { useQueuePoll } from "@/hooks/useQueuePoll";
 import type { ProcessingJobBucket } from "@/lib/data";
 
 export function ProcessingQueueLiveBody({
@@ -11,17 +11,14 @@ export function ProcessingQueueLiveBody({
   initial: ProcessingJobBucket;
   enabled: boolean;
 }) {
-  const { data } = useLivePoll(
-    "/api/processing-queue/live",
-    initial,
-    4_000,
-    enabled,
-  );
+  const { data, failed: unavailable } = useQueuePoll(initial, enabled);
+  if (!data) return <p role="alert" className="card p-4 text-warn">Processing queue is unavailable. Retrying automatically.</p>;
 
   const { active, queued, failed, completed, totals } = data;
 
   return (
     <>
+      {unavailable && <p role="alert" className="card p-4 mb-4 text-warn">Queue updates are unavailable. Showing the last successful snapshot; job states may have changed. Retrying automatically.</p>}
       <ProcessingQueueTable
         title="Active"
         jobs={active}
@@ -29,9 +26,9 @@ export function ProcessingQueueLiveBody({
         defaultOpen
       />
       <ProcessingQueueTable
-        title="Failed"
+        title="Failed or stopped"
         jobs={failed}
-        emptyTitle="No failed jobs. All clear."
+        emptyTitle="No failed or stopped jobs."
         defaultOpen={false}
         totalCount={totals.failed}
       />
@@ -47,9 +44,9 @@ export function ProcessingQueueLiveBody({
         totalCount={totals.queued}
       />
       <ProcessingQueueTable
-        title="Recently completed"
+        title="Recently finished"
         jobs={completed}
-        emptyTitle="No completed jobs yet."
+        emptyTitle="No finished jobs yet."
         defaultOpen={false}
       />
     </>

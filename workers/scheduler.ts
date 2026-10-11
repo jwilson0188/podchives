@@ -91,18 +91,8 @@ export async function runOnce(opts?: Partial<SchedulerOptions>) {
     const { hasDatabase, getDb } = await import("@/lib/db");
     if (hasDatabase()) {
       const db = getDb();
-      // Re-queue failed jobs with retryCount < 3
-      await db.processingJob.updateMany({
-        where: { status: "failed", retryCount: { lt: 3 } },
-        data: {
-          status: "queued",
-          progressPercent: 0,
-          startedAt: null,
-          completedAt: null,
-          retryCount: { increment: 1 },
-          errorMessage: null,
-        },
-      });
+      const { retryAutomaticFailures } = await import("@/lib/queueControl");
+      await retryAutomaticFailures(db);
     }
   }
 

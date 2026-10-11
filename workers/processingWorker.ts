@@ -1,3 +1,4 @@
+import { withActiveJob, activeJobWhere } from "@/lib/jobControl";
 /**
  * Main processing worker — the dispatcher.
  *
@@ -8,6 +9,8 @@
  * Lifecycle is logged into worker_runs so the UI can show worker history.
  */
 import os from "node:os";
+import { PipelineJobNotActiveError } from "@/lib/queueTransitions";
+import { TranscriptChangedError } from "@/lib/transcriptIntegrity";
 import fs from "node:fs";
 import {
   completePipelineJob,
@@ -73,32 +76,24 @@ export async function processOnce(
         if (!job.episode_id)
           throw new Error("transcription job missing episode_id");
         await runTranscriptionJob(job.id, job.episode_id);
-        await completePipelineJob(job.id, job.episode_id, "transcription");
         break;
 
       case "transcript_segmentation":
         if (!job.episode_id)
           throw new Error("transcript_segmentation job missing episode_id");
         await runSegmentationJob(job.id, job.episode_id);
-        await completePipelineJob(
-          job.id,
-          job.episode_id,
-          "transcript_segmentation",
-        );
         break;
 
       case "embedding":
         if (!job.episode_id)
           throw new Error("embedding job missing episode_id");
         await runEmbeddingJob(job.id, job.episode_id);
-        await completePipelineJob(job.id, job.episode_id, "embedding");
         break;
 
       case "indexing":
         if (!job.episode_id)
           throw new Error("indexing job missing episode_id");
         await runIndexingJob(job.id, job.episode_id);
-        await completePipelineJob(job.id, job.episode_id, "indexing");
         break;
 
       default:
@@ -111,10 +106,22 @@ export async function processOnce(
       status: "completed",
     };
   } catch (err: any) {
+    if (err instanceof PipelineJobNotActiveError) return { jobId: job.id, jobType: job.job_type, status: "skipped" };
+    if (err instanceof TranscriptChangedError) {
+      // Do not let an old worker cancel the new generation's queued jobs.
+      const { getDb } = await import("@/lib/db");
+      await getDb().processingJob.updateMany({ where: { id: job.id, ...activeJobWhere }, data: {
+        status: "completed", progressPercent: 0, errorMessage: err.message, completedAt: new Date(),
+      } });
+      return { jobId: job.id, jobType: job.job_type, status: "skipped" };
+    }
     const message = err?.message ?? "Unknown worker error";
     try {
       await markJobFailed(job.id, message);
-    } catch {
+    } catch (failureError) {
+      if (failureError instanceof TranscriptChangedError || failureError instanceof PipelineJobNotActiveError) {
+        return { jobId: job.id, jobType: job.job_type, status: "skipped" };
+      }
       // ignored — surface the original error
     }
     return {
@@ -138,10 +145,10 @@ async function runThumbnailCacheJob(jobId: string, episodeId: string | null) {
   }
   await updateJobStatus(jobId, "running", { progressPercent: 10 });
   const localThumbPath = await cacheThumbnail(ep.id, ep.thumbnailOriginalUrl);
-  await db.episode.update({
+  await withActiveJob(db, jobId, { episodeId }, (tx) => tx.episode.update({
     where: { id: episodeId },
     data: { thumbnailLocalPath: localThumbPath },
-  });
+  }));
   await updateJobProgress(jobId, 100);
 }
 
@@ -178,7 +185,7 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
 
   await updateJobStatus(jobId, "downloading", { progressPercent: 5 });
 
-  const dl = await db.download.create({
+  const dl = await withActiveJob(db, jobId, { episodeId }, (tx) => tx.download.create({
     data: {
       sourceId: ep.sourceId,
       episodeId: ep.id,
@@ -187,7 +194,7 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
       progressPercent: 5,
       startedAt: new Date(),
     },
-  });
+  }));
 
   let lastPct = 5;
   let lastWrite = 0;
@@ -200,10 +207,10 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
     lastWrite = now;
     await Promise.all([
       updateJobProgress(jobId, rounded),
-      db.download.update({
+      withActiveJob(db, jobId, { episodeId }, (tx) => tx.download.update({
         where: { id: dl.id },
         data: { progressPercent: rounded, status: "downloading" },
-      }),
+      })),
     ]);
   };
 
@@ -222,16 +229,16 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
       // non-fatal — leave at 0 if we can't stat the file
     }
 
-    await db.episode.update({
+    await withActiveJob(db, jobId, { episodeId }, (tx) => tx.episode.update({
       where: { id: episodeId },
       data: {
         audioFilePath: audioPath,
         processingStatus: "downloading",
         ...(audioBytes > 0 ? { audioBytes } : {}),
       },
-    });
+    }));
 
-    await db.download.update({
+    await withActiveJob(db, jobId, { episodeId }, (tx) => tx.download.update({
       where: { id: dl.id },
       data: {
         status: "completed",
@@ -239,18 +246,18 @@ async function runDownloadJob(jobId: string, episodeId: string | null) {
         filePath: audioPath,
         completedAt: new Date(),
       },
-    });
+    }));
 
     await updateJobProgress(jobId, 100);
   } catch (err: any) {
-    await db.download.update({
+    await withActiveJob(db, jobId, { episodeId }, (tx) => tx.download.update({
       where: { id: dl.id },
       data: {
         status: "failed",
         errorMessage: err?.message ?? "Download failed",
         completedAt: new Date(),
       },
-    });
+    }));
     throw err;
   }
 }
@@ -274,10 +281,10 @@ async function runAudioExtractJob(jobId: string, episodeId: string | null) {
   await updateJobStatus(jobId, "extracting_audio", { progressPercent: 30 });
   const finalPath = await extractAudioIfNeeded(ep.audioFilePath);
   if (finalPath !== ep.audioFilePath) {
-    await db.episode.update({
+    await withActiveJob(db, jobId, { episodeId }, (tx) => tx.episode.update({
       where: { id: episodeId },
       data: { audioFilePath: finalPath },
-    });
+    }));
   }
   await updateJobProgress(jobId, 100);
 }

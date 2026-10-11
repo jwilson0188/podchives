@@ -5,7 +5,7 @@ import { hasDatabase } from "@/lib/db";
 /**
  * Trigger a re-sync of an existing source.
  *
- * In real mode: enqueues a fresh `source_sync` processing job for the
+ * In real mode: enqueues or reuses an active `source_sync` processing job for the
  * worker to pick up. The actual yt-dlp work happens in the worker, not
  * inline — so this returns quickly with the new job id.
  *
@@ -31,11 +31,6 @@ export async function POST(
   if (!source) {
     return NextResponse.json({ error: "Source not found" }, { status: 404 });
   }
-
-  await db.source.update({
-    where: { id: params.id },
-    data: { syncStatus: "queued" },
-  });
 
   const { createProcessingJob } = await import("@/lib/queue");
   const job = await createProcessingJob({

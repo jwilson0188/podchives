@@ -176,6 +176,7 @@ export async function semanticSearch(
     JOIN episodes e ON e.id = ts.episode_id
     JOIN podcasts p ON p.id = ts.podcast_id
     WHERE ts.transcript_embedding IS NOT NULL
+      AND e.is_embedded = true AND e.embedding_status = 'completed'
       ${filterSql}
     ORDER BY ts.transcript_embedding <=> $1::vector ASC
     LIMIT ${Number(limit) | 0}

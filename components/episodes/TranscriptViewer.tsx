@@ -115,10 +115,9 @@ export function TranscriptViewer({
                           "text-sm leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] " +
                           (active ? "text-text-primary" : "text-text-dim")
                         }
-                        dangerouslySetInnerHTML={{
-                          __html: highlight(seg.transcriptText, transcriptQuery),
-                        }}
-                      />
+                      >
+                        {highlight(seg.transcriptText, transcriptQuery)}
+                      </span>
                     </button>
                   );
                 })}

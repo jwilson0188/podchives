@@ -8,11 +8,6 @@ import type { ArchiveOption } from "@/components/search/FilterPanel";
 import type { SearchResultView } from "@/lib/data";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { readSearchUrlParams } from "@/lib/searchFilters";
-import {
-  getCachedSearch,
-  searchCacheKey,
-  setCachedSearch,
-} from "@/lib/searchCache";
 
 export function SearchResultsView({
   archives,
@@ -34,27 +29,12 @@ export function SearchResultsView({
     [paramsKey],
   );
 
-  const cacheKey = useMemo(
-    () =>
-      query
-        ? searchCacheKey(query, {
-            archive: url.archiveId,
-            platform: url.platform,
-            range: url.dateRange,
-            mode: url.mode,
-            searchableOnly: url.searchableOnly,
-          })
-        : "",
-    [query, url],
-  );
-
   const archiveName = url.archiveId
     ? archives.find((a) => a.id === url.archiveId)?.name
     : undefined;
 
-  // Start empty to match SSR — sessionStorage doesn't exist on the server, so
-  // seeding from cache here renders different markup on the client and trips
-  // a hydration error. The effect below rehydrates from cache after mount.
+  // Saved search hits may reference a replaced transcript generation. Retrieve
+  // current results instead of presenting session snapshots as current evidence.
   const [results, setResults] = useState<SearchResultView[]>([]);
 
   const [refreshing, setRefreshing] = useState(false);
@@ -67,12 +47,8 @@ export function SearchResultsView({
       return;
     }
 
-    const cached = getCachedSearch(cacheKey);
-    if (cached) {
-      setResults(cached);
-    }
-
     let cancelled = false;
+    setResults([]);
     setRefreshing(true);
 
     const qs = new URLSearchParams({ q: query });
@@ -82,15 +58,14 @@ export function SearchResultsView({
     if (url.mode && url.mode !== "keyword") qs.set("mode", url.mode);
     if (url.searchableOnly === false) qs.set("searchable", "0");
 
-    fetch(`/api/search?${qs}`)
+    fetch(`/api/search?${qs}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled || !data?.results) return;
         setResults(data.results);
-        setCachedSearch(cacheKey, data.results);
       })
       .catch(() => {
-        // keep prior results
+        // Prior transcript results were cleared before the request.
       })
       .finally(() => {
         if (!cancelled) setRefreshing(false);
@@ -99,7 +74,7 @@ export function SearchResultsView({
     return () => {
       cancelled = true;
     };
-  }, [query, cacheKey, url]);
+  }, [query, url]);
 
   const filterBits: string[] = [];
   if (archiveName) filterBits.push(archiveName);

@@ -1,3 +1,4 @@
+import { writeJobProgress, retryJob } from "./jobControl";
 /**
  * Processing queue.
  *
@@ -8,15 +9,18 @@
  *   queued → running → (downloading | transcribing | embedding | indexing) → completed
  *                  ↘ failed
  */
+import { admitSourceSync, admitAudioFallback } from "./queueControl";
+import type { PrismaClient } from "@prisma/client";
 import type { JobStatus, JobType } from "./constants";
+import { admitEpisodeProcessing, getQueueLimits } from "./queueAdmission";
+export { getQueueLimits } from "./queueAdmission";
+import { completeMediaPipelineJob, enqueuePipelineSuccessor, failMediaPipelineJob, MEDIA_JOB_TYPES } from "./queueTransitions";
+import { failTranscriptJob, TRANSCRIPT_JOB_TYPES } from "./transcriptIntegrity";
 import {
   EPISODE_PIPELINE,
-  getNextPipelineStep,
-  isAudioFilePath,
   isPipelineJobType,
 } from "./pipeline";
 import {
-  shouldSkipYouTubeAudioDownload,
   shouldTryYouTubeCaptions,
 } from "./transcriptionConfig";
 
@@ -39,6 +43,12 @@ export async function createProcessingJob(args: {
 }) {
   const { getDb } = await import("./db");
   const db = getDb();
+  if (args.jobType === "source_sync") {
+    if (!args.sourceId) throw new Error("Source sync requires a source ID");
+    const result = await admitSourceSync(db, args.sourceId);
+    if (!result) throw new Error("Source not found");
+    return result.job;
+  }
   return db.processingJob.create({
     data: {
       episodeId: args.episodeId,
@@ -58,32 +68,9 @@ export async function createProcessingJob(args: {
  *   → transcript_segmentation → embedding → indexing
  */
 export async function queueEpisodeProcessing(episodeId: string) {
-  const firstStep = await resolveFirstPipelineJob(episodeId);
-  return [await createProcessingJob({ episodeId, jobType: firstStep })];
-}
-
-async function resolveFirstPipelineJob(episodeId: string): Promise<JobType> {
   const { getDb } = await import("./db");
-  const db = getDb();
-  const ep = await db.episode.findUnique({
-    where: { id: episodeId },
-    select: {
-      thumbnailOriginalUrl: true,
-      thumbnailLocalPath: true,
-      transcriptOriginalUrl: true,
-      sourcePlatform: true,
-    },
-  });
-  if (ep?.thumbnailOriginalUrl && !ep.thumbnailLocalPath) {
-    return "thumbnail_cache";
-  }
-  if (ep?.transcriptOriginalUrl) {
-    return "transcription";
-  }
-  if (ep && shouldSkipYouTubeAudioDownload(ep.sourcePlatform)) {
-    return "transcription";
-  }
-  return "download";
+  const job = await admitEpisodeProcessing(getDb(), episodeId);
+  return job ? [job] : [];
 }
 
 /**
@@ -95,98 +82,19 @@ export async function enqueueNextPipelineJob(
   completedJobType: JobType,
 ): Promise<boolean> {
   const { getDb } = await import("./db");
-  const db = getDb();
-
-  let next = getNextPipelineStep(completedJobType);
-  while (next) {
-    const ep = await db.episode.findUnique({
-      where: { id: episodeId },
-      select: {
-        thumbnailOriginalUrl: true,
-        thumbnailLocalPath: true,
-        audioFilePath: true,
-        sourcePlatform: true,
-        transcriptOriginalUrl: true,
-      },
-    });
-    if (!ep) return false;
-
-    if (
-      next === "thumbnail_cache" &&
-      (!ep.thumbnailOriginalUrl || ep.thumbnailLocalPath)
-    ) {
-      completedJobType = "thumbnail_cache";
-      next = getNextPipelineStep("thumbnail_cache");
-      continue;
-    }
-
-    if (
-      (next === "download" || next === "audio_extract") &&
-      ep.transcriptOriginalUrl
-    ) {
-      completedJobType = next;
-      next = getNextPipelineStep(next);
-      continue;
-    }
-
-    if (
-      (next === "download" || next === "audio_extract") &&
-      shouldSkipYouTubeAudioDownload(ep.sourcePlatform)
-    ) {
-      completedJobType = next;
-      next = getNextPipelineStep(next);
-      continue;
-    }
-
-    if (
-      next === "audio_extract" &&
-      ep.audioFilePath &&
-      isAudioFilePath(ep.audioFilePath)
-    ) {
-      completedJobType = "audio_extract";
-      next = getNextPipelineStep("audio_extract");
-      continue;
-    }
-
-    const existing = await db.processingJob.findFirst({
-      where: {
-        episodeId,
-        jobType: next,
-        OR: [
-          { status: { in: ["queued", ...INFLIGHT_STATUSES] } },
-          { status: "completed", errorMessage: null },
-        ],
-      },
-      select: { id: true },
-    });
-    if (existing) return false;
-
-    await createProcessingJob({ episodeId, jobType: next });
-    return true;
-  }
-  return false;
+  return enqueuePipelineSuccessor(getDb(), episodeId, completedJobType);
 }
 
-/** Mark a job done and enqueue the next pipeline step when applicable. */
+/** Media job completion + successor admission; transcript stages use their own guards. */
 export async function completePipelineJob(
   jobId: string,
   episodeId: string | null | undefined,
   jobType: string,
 ): Promise<void> {
-  await markJobCompleted(jobId);
-  if (!episodeId || !isPipelineJobType(jobType)) return;
-  await enqueueNextPipelineJob(episodeId, jobType);
+  if (!episodeId) throw new Error("Pipeline job missing episode ID");
+  const { getDb } = await import("./db");
+  await completeMediaPipelineJob(getDb(), jobId, episodeId, jobType);
 }
-
-const ACTIVE_STATUSES = [
-  "queued",
-  "running",
-  "downloading",
-  "transcribing",
-  "segmenting",
-  "embedding",
-  "indexing",
-];
 
 /** In-flight worker states (not queued / terminal). */
 export const INFLIGHT_STATUSES = [
@@ -199,38 +107,6 @@ export const INFLIGHT_STATUSES = [
   "extracting_audio",
 ] as const;
 
-export function getQueueLimits(sourceType?: string) {
-  const isRss = sourceType === "rss" || sourceType === "rss_future";
-  return {
-    maxQueuedEpisodesPerSource: Math.max(
-      1,
-      Number(
-        isRss
-          ? process.env.MAX_QUEUED_EPISODES_PER_SOURCE_RSS ||
-              process.env.MAX_QUEUED_EPISODES_PER_SOURCE
-          : process.env.MAX_QUEUED_EPISODES_PER_SOURCE,
-      ) || (isRss ? 75 : 50),
-    ),
-    maxInflightEpisodesPerSource: Math.max(
-      1,
-      Number(
-        isRss
-          ? process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE_RSS ||
-              process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE
-          : process.env.MAX_INFLIGHT_EPISODES_PER_SOURCE,
-      ) || (isRss ? 20 : 15),
-    ),
-    maxEpisodesQueuedPerSync: Math.max(
-      1,
-      Number(
-        isRss
-          ? process.env.MAX_EPISODES_QUEUED_PER_SYNC_RSS ||
-              process.env.MAX_EPISODES_QUEUED_PER_SYNC
-          : process.env.MAX_EPISODES_QUEUED_PER_SYNC,
-      ) || (isRss ? 100 : 50),
-    ),
-  };
-}
 
 async function countSourcePipelinePressure(sourceId: string): Promise<{
   queuedPipelines: number;
@@ -308,43 +184,15 @@ export async function reclaimStaleJobs(
 
 /**
  * Idempotently enqueue the download→index pipeline for an episode.
- * Skips episodes that already have audio, are searchable, or already have an
- * in-flight pipeline job. Safe to call repeatedly (e.g. from a re-sync).
+ * Resumes from persisted transcript/readiness and usable local media.
+ * Admission and source-pressure checks serialize across concurrent syncs.
  * Returns true if jobs were created.
  */
 export async function queueEpisodeProcessingIfNeeded(
-  episodeId: string,
+  episodeId: string, sourceJobId?: string,
 ): Promise<boolean> {
   const { getDb } = await import("./db");
-  const db = getDb();
-
-  const ep = await db.episode.findUnique({
-    where: { id: episodeId },
-    select: {
-      id: true,
-      sourceId: true,
-      audioFilePath: true,
-      isSearchable: true,
-    },
-  });
-  if (!ep) return false;
-  if (ep.audioFilePath || ep.isSearchable) return false;
-
-  if (!(await canQueueEpisodeForSource(ep.sourceId))) return false;
-
-  const active = await db.processingJob.findFirst({
-    where: {
-      episodeId,
-      jobType: { in: EPISODE_PIPELINE as string[] },
-      status: { in: ACTIVE_STATUSES },
-    },
-    select: { id: true },
-  });
-  if (active) return false;
-
-  const firstStep = await resolveFirstPipelineJob(episodeId);
-  await createProcessingJob({ episodeId, jobType: firstStep });
-  return true;
+  return Boolean(await admitEpisodeProcessing(getDb(), episodeId, { sourceJobId }));
 }
 
 /**
@@ -355,28 +203,14 @@ export async function queueEpisodeProcessingIfNeeded(
  * for Whisper to work with and the episode would otherwise be dead. Queue a
  * real download so the paid path can take over.
  *
- * Only skips when a download is already pending — a *completed* download job
- * is not proof of audio, because the fast-path completes without fetching
- * anything. Returns true if a job was created.
+ * Rejects stale workers, preserves existing text, and serializes download
+ * admission with transcription failure. Returns true if a job was created.
  */
 export async function queueAudioFallbackDownload(
-  episodeId: string,
+  episodeId: string, jobId: string, expectedSegmentIds: readonly string[], message: string,
 ): Promise<boolean> {
   const { getDb } = await import("./db");
-  const db = getDb();
-
-  const pending = await db.processingJob.findFirst({
-    where: {
-      episodeId,
-      jobType: "download",
-      status: { in: ["queued", ...INFLIGHT_STATUSES] },
-    },
-    select: { id: true },
-  });
-  if (pending) return false;
-
-  await createProcessingJob({ episodeId, jobType: "download" });
-  return true;
+  return admitAudioFallback(getDb(), episodeId, jobId, expectedSegmentIds, message);
 }
 
 /**
@@ -421,17 +255,8 @@ export async function enqueueDueSourceSyncs(
 
   let enqueued = 0;
   for (const s of sources) {
-    const active = await db.processingJob.findFirst({
-      where: {
-        sourceId: s.id,
-        jobType: "source_sync",
-        status: { in: ["queued", "running"] },
-      },
-      select: { id: true },
-    });
-    if (active) continue;
-    await createProcessingJob({ sourceId: s.id, jobType: "source_sync" });
-    enqueued++;
+    const result = await admitSourceSync(db, s.id, cutoff);
+    if (result?.created) enqueued++;
   }
   return enqueued;
 }
@@ -440,66 +265,69 @@ const CANCELLED_BY_USER = "Stopped by user";
 
 /**
  * Halt ingestion for a source: disable auto-sync, clear queued work, reset status.
- * In-flight worker jobs may still finish the current step; nothing new will queue.
+ * Running external calls can finish, but their cancelled jobs cannot publish or enqueue successors.
  */
-export async function stopSourceSync(sourceId: string): Promise<{
+export async function stopSourceSync(sourceId: string, database?: PrismaClient): Promise<{
   cancelledJobs: number;
   cancelledDownloads: number;
 }> {
-  const { getDb } = await import("./db");
-  const db = getDb();
+  const db = database ?? (await import("./db")).getDb();
 
-  const episodeIds = (
-    await db.episode.findMany({
-      where: { sourceId },
-      select: { id: true },
-    })
-  ).map((e) => e.id);
+  return db.$transaction(async (db) => {
+    await db.$queryRaw`SELECT id FROM sources WHERE id=${sourceId} FOR UPDATE`;
+    await db.$queryRaw`SELECT id FROM episodes WHERE source_id=${sourceId} ORDER BY id FOR UPDATE`;
+    const episodeIds = (
+      await db.episode.findMany({
+        where: { sourceId },
+        select: { id: true },
+      })
+    ).map((e) => e.id);
 
-  const [sourceJobs, episodeJobs, downloads] = await Promise.all([
-    db.processingJob.updateMany({
-      where: { sourceId, status: "queued" },
-      data: {
-        status: "failed",
-        errorMessage: CANCELLED_BY_USER,
-        completedAt: new Date(),
-      },
-    }),
-    episodeIds.length > 0
-      ? db.processingJob.updateMany({
-          where: { episodeId: { in: episodeIds }, status: "queued" },
-          data: {
-            status: "failed",
-            errorMessage: CANCELLED_BY_USER,
-            completedAt: new Date(),
-          },
-        })
-      : Promise.resolve({ count: 0 }),
-    db.download.updateMany({
-      where: { sourceId, status: "queued" },
-      data: {
-        status: "failed",
-        errorMessage: CANCELLED_BY_USER,
-        completedAt: new Date(),
-      },
-    }),
-  ]);
+    const [sourceJobs, episodeJobs, downloads] = await Promise.all([
+      db.processingJob.updateMany({
+        where: { sourceId, status: { in: ["queued", ...INFLIGHT_STATUSES] } },
+        data: {
+          status: "failed",
+          errorMessage: CANCELLED_BY_USER,
+          completedAt: new Date(),
+        },
+      }),
+      episodeIds.length > 0
+        ? db.processingJob.updateMany({
+            where: { episodeId: { in: episodeIds }, status: { in: ["queued", ...INFLIGHT_STATUSES] } },
+            data: {
+              status: "failed",
+              errorMessage: CANCELLED_BY_USER,
+              completedAt: new Date(),
+            },
+          })
+        : Promise.resolve({ count: 0 }),
+      db.download.updateMany({
+        where: { sourceId, status: { in: ["queued", ...INFLIGHT_STATUSES] } },
+        data: {
+          status: "failed",
+          errorMessage: CANCELLED_BY_USER,
+          completedAt: new Date(),
+        },
+      }),
+    ]);
 
-  await db.source.update({
-    where: { id: sourceId },
-    data: { autoSync: false, syncStatus: "idle" },
+    await db.sourceSyncJob.updateMany({ where: { sourceId, status: { in: ["queued", "running"] } }, data: { status: "failed", errorMessage: CANCELLED_BY_USER, completedAt: new Date() } });
+    await db.source.update({
+      where: { id: sourceId },
+      data: { autoSync: false, syncStatus: "idle" },
+    });
+
+    return {
+      cancelledJobs: sourceJobs.count + episodeJobs.count,
+      cancelledDownloads: downloads.count,
+    };
   });
-
-  return {
-    cancelledJobs: sourceJobs.count + episodeJobs.count,
-    cancelledDownloads: downloads.count,
-  };
 }
 
 /** Pick the next queued job (pipeline-first), marked as running atomically. */
-export async function getNextQueuedJob(workerId: string) {
-  const { getDb } = await import("./db");
-  const db = getDb();
+export async function getNextQueuedJob(workerId: string, database?: PrismaClient) {
+  const db = database ?? (await import("./db")).getDb();
 
   // Transcription doesn't always need audio: YouTube captions and RSS feed
   // transcripts are fetched from the network, and the pipeline deliberately
@@ -512,10 +340,13 @@ export async function getNextQueuedJob(workerId: string) {
   const [row] = await db.$queryRawUnsafe<any[]>(
     `
     UPDATE processing_jobs
-    SET status = 'running', started_at = NOW(), worker_id = $1
+    SET status = 'running', started_at = NOW(), updated_at = NOW(), worker_id = $1
     WHERE id = (
       SELECT pj.id FROM processing_jobs pj
       WHERE pj.status = 'queued'
+        AND NOT EXISTS (SELECT 1 FROM scheduler_settings WHERE worker_enabled = false)
+        AND (pj.error_message IS NULL OR (pj.error_message <> 'Stopped by user'
+          AND pj.error_message NOT LIKE 'cancelled:%' AND pj.error_message NOT LIKE 'superseded:%'))
         AND (
           pj.episode_id IS NULL
           OR pj.job_type IN ('download', 'thumbnail_cache', 'source_sync')
@@ -535,7 +366,7 @@ export async function getNextQueuedJob(workerId: string) {
                     )
                   )
                 )
-                OR (pj.job_type = 'transcript_segmentation' AND e.is_transcribed = true)
+                OR (pj.job_type = 'transcript_segmentation' AND EXISTS (SELECT 1 FROM transcript_segments ts WHERE ts.episode_id=e.id))
                 OR (pj.job_type = 'embedding' AND e.is_transcribed = true)
                 OR (pj.job_type = 'indexing' AND e.is_embedded = true)
               )
@@ -576,13 +407,7 @@ export async function updateJobStatus(
 ) {
   const { getDb } = await import("./db");
   const db = getDb();
-  return db.processingJob.update({
-    where: { id: jobId },
-    data: {
-      status,
-      ...extra,
-    },
-  });
+  return writeJobProgress(db, jobId, { status, ...extra });
 }
 
 export async function updateJobProgress(
@@ -591,23 +416,13 @@ export async function updateJobProgress(
 ) {
   const { getDb } = await import("./db");
   const db = getDb();
-  return db.processingJob.update({
-    where: { id: jobId },
-    data: { progressPercent },
-  });
+  return writeJobProgress(db, jobId, { progressPercent });
 }
 
 export async function markJobCompleted(jobId: string) {
   const { getDb } = await import("./db");
   const db = getDb();
-  return db.processingJob.update({
-    where: { id: jobId },
-    data: {
-      status: "completed",
-      progressPercent: 100,
-      completedAt: new Date(),
-    },
-  });
+  return writeJobProgress(db, jobId, { status: "completed", progressPercent: 100, errorMessage: null, completedAt: new Date() });
 }
 
 /** Cancel queued downstream pipeline jobs when an earlier step fails or stalls. */
@@ -649,14 +464,15 @@ export async function markJobFailed(jobId: string, errorMessage: string) {
     select: { episodeId: true, jobType: true },
   });
 
-  await db.processingJob.update({
-    where: { id: jobId },
-    data: {
-      status: "failed",
-      errorMessage,
-      completedAt: new Date(),
-    },
-  });
+  if (job?.episodeId && TRANSCRIPT_JOB_TYPES.includes(job.jobType as typeof TRANSCRIPT_JOB_TYPES[number])) {
+    return failTranscriptJob(db, job.episodeId, jobId, errorMessage);
+  }
+
+  if (job?.episodeId && MEDIA_JOB_TYPES.includes(job.jobType as typeof MEDIA_JOB_TYPES[number])) {
+    return failMediaPipelineJob(db, job.episodeId, jobId, errorMessage);
+  }
+
+  await writeJobProgress(db, jobId, { status: "failed", errorMessage, completedAt: new Date() });
 
   if (job?.episodeId && isPipelineJobType(job.jobType)) {
     await cancelOrphanedDownstreamJobs(
@@ -669,17 +485,7 @@ export async function markJobFailed(jobId: string, errorMessage: string) {
 export async function retryFailedJob(jobId: string) {
   const { getDb } = await import("./db");
   const db = getDb();
-  return db.processingJob.update({
-    where: { id: jobId },
-    data: {
-      status: "queued",
-      progressPercent: 0,
-      errorMessage: null,
-      startedAt: null,
-      completedAt: null,
-      retryCount: { increment: 1 },
-    },
-  });
+  return retryJob(db, jobId);
 }
 
 /**

@@ -18,11 +18,12 @@ export async function isWorkerEnabled(): Promise<boolean> {
   if (!hasDatabase()) return true;
   try {
     const row = await getDb().schedulerSettings.findFirst({
+      where: { workerEnabled: false },
       select: { workerEnabled: true },
     });
     return row?.workerEnabled ?? true;
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -30,8 +31,7 @@ export async function setWorkerEnabled(enabled: boolean) {
   const db = getDb();
   const existing = await db.schedulerSettings.findFirst();
   if (existing) {
-    return db.schedulerSettings.update({
-      where: { id: existing.id },
+    return db.schedulerSettings.updateMany({
       data: { workerEnabled: enabled },
     });
   }
@@ -41,7 +41,7 @@ export async function setWorkerEnabled(enabled: boolean) {
 export async function getWorkerStatus(): Promise<WorkerStatus> {
   const db = getDb();
   const [settings, queuedCount, activeCount, lastRun] = await Promise.all([
-    db.schedulerSettings.findFirst({ select: { workerEnabled: true } }),
+    db.schedulerSettings.findFirst({ where: { workerEnabled: false }, select: { workerEnabled: true } }),
     db.processingJob.count({ where: { status: "queued" } }),
     db.processingJob.count({
       where: {

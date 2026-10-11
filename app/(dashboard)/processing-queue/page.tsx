@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function ProcessingQueuePage() {
-  const [{ active, queued, failed, completed, totals }, workerStatus] =
+  const [initial, workerStatus] =
     await Promise.all([
     getProcessingJobs(),
     IS_DEMO_MODE || !hasDatabase()
@@ -23,9 +23,10 @@ export default async function ProcessingQueuePage() {
           lastRunAt: null,
           demo: true,
         })
-      : getWorkerStatus(),
+      : getWorkerStatus().catch(() => null),
   ]);
 
+  const { totals } = initial;
   const concurrency = Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 1);
   const workerLabel =
     (process.env.PROCESSING_MODE ?? "local") === "render-worker"
@@ -36,11 +37,12 @@ export default async function ProcessingQueuePage() {
     <div>
       <PageHeader
         title="Processing Queue"
-        description="Live worker state — what's running, what's waiting, what failed, and what just shipped."
-        actions={<WorkerControls initialStatus={workerStatus} />}
+        description="Live worker state — what's running, what's waiting, what failed or stopped, and what finished."
+        actions={workerStatus ? <WorkerControls initialStatus={workerStatus} /> : undefined}
       />
 
-      <section className="grid lg:grid-cols-3 gap-3 mb-8">
+      {!workerStatus && <p role="alert" className="card p-4 mb-4 text-warn">Worker controls are unavailable. Refresh to try again.</p>}
+      {!initial.error && workerStatus && <section className="grid lg:grid-cols-3 gap-3 mb-8">
         <WorkerCard
           title="Worker"
           value={workerLabel}
@@ -53,7 +55,7 @@ export default async function ProcessingQueuePage() {
           status={totals.queued > 0 || totals.active > 0 ? "scheduled" : "ok"}
           hint={
             totals.failed > 0
-              ? `${totals.failed.toLocaleString()} failed total · showing latest 25 below`
+              ? `${totals.failed.toLocaleString()} failed or stopped total · showing latest 25 below`
               : workerStatus.lastRunAt
                 ? `last run ${new Date(workerStatus.lastRunAt).toLocaleString()}`
                 : "no runs recorded yet"
@@ -69,10 +71,10 @@ export default async function ProcessingQueuePage() {
           }
           hint="max 3 jobs/run · retries: on"
         />
-      </section>
+      </section>}
 
       <ProcessingQueueLiveBody
-        initial={{ active, queued, failed, completed, totals }}
+        initial={initial}
         enabled={!IS_DEMO_MODE && hasDatabase()}
       />
     </div>

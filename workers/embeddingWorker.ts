@@ -4,14 +4,13 @@
  * Handles `embedding` and `indexing` jobs:
  *   - `embedding` walks all transcript segments for an episode and writes
  *     vectors into transcript_segments.transcript_embedding via raw SQL.
- *   - `indexing` is mostly a no-op for now (pgvector creates the index at
- *     migration time). Marking the episode `isSearchable=true` is the real
- *     side-effect.
+ *   - `indexing` atomically publishes search readiness and job completion.
+ *     Database indexes require separate reviewed provisioning.
  */
 import { generateSegmentEmbeddings } from "@/lib/embeddings";
+import { isSupersededTranscriptJob, publishTranscriptSearchability, TranscriptChangedError } from "@/lib/transcriptIntegrity";
 import {
   markJobFailed,
-  updateJobProgress,
   updateJobStatus,
 } from "@/lib/queue";
 
@@ -26,13 +25,13 @@ export async function runEmbeddingJob(jobId: string, episodeId: string) {
     }
 
     await updateJobStatus(jobId, "embedding", { progressPercent: 10 });
-    const { embedded } = await generateSegmentEmbeddings(episodeId);
+    const { embedded } = await generateSegmentEmbeddings(episodeId, 64, jobId);
     if (embedded === 0) {
       throw new Error("No segments were embedded");
     }
-    await updateJobProgress(jobId, 100);
     return { embedded };
   } catch (err: any) {
+    if (err instanceof TranscriptChangedError || await isSupersededTranscriptJob(db, jobId)) throw new TranscriptChangedError();
     await markJobFailed(jobId, err?.message ?? "Embedding failed");
     throw err;
   }
@@ -43,23 +42,10 @@ export async function runIndexingJob(jobId: string, episodeId: string) {
   const db = getDb();
 
   try {
-    const ep = await db.episode.findUnique({ where: { id: episodeId } });
-    if (!ep) throw new Error(`Episode ${episodeId} not found`);
-    if (!ep.isTranscribed) {
-      throw new Error("Episode is not transcribed — cannot mark searchable");
-    }
-    const segCount = await db.transcriptSegment.count({ where: { episodeId } });
-    if (segCount === 0) {
-      throw new Error("No transcript segments — cannot mark searchable");
-    }
-
     await updateJobStatus(jobId, "indexing", { progressPercent: 50 });
-    await db.episode.update({
-      where: { id: episodeId },
-      data: { isSearchable: true, processingStatus: "completed" },
-    });
-    await updateJobProgress(jobId, 100);
+    await publishTranscriptSearchability(db, episodeId, jobId);
   } catch (err: any) {
+    if (err instanceof TranscriptChangedError || await isSupersededTranscriptJob(db, jobId)) throw new TranscriptChangedError();
     await markJobFailed(jobId, err?.message ?? "Indexing failed");
     throw err;
   }

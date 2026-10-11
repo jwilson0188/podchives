@@ -5,12 +5,12 @@
  *   - `transcript_segmentation` → re-pack segments into ~30s embedding chunks
  */
 import {
-  markEpisodeTranscribed,
   resolveTranscription,
   saveTranscriptSegments,
   segmentTranscript,
   type TranscriptSegment,
 } from "@/lib/transcription";
+import { getTranscriptSegmentIds, isSupersededTranscriptJob, TranscriptChangedError } from "@/lib/transcriptIntegrity";
 import { shouldTryRssFeedTranscript, shouldTryYouTubeCaptions } from "@/lib/transcriptionConfig";
 import {
   markJobFailed,
@@ -47,13 +47,25 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
 
   try {
     await updateJobStatus(jobId, "transcribing", { progressPercent: 10 });
-    const resolved = await resolveTranscription({
-      episodeId,
-      audioFilePath: ep.audioFilePath ?? "",
-      sourceUrl: ep.sourceUrl,
-      sourcePlatform: ep.sourcePlatform,
-      transcriptOriginalUrl: ep.transcriptOriginalUrl,
-    });
+    const expectedSegmentIds = await getTranscriptSegmentIds(db, episodeId);
+    let resolved: Awaited<ReturnType<typeof resolveTranscription>>;
+    try {
+      resolved = await resolveTranscription({
+        episodeId,
+        audioFilePath: ep.audioFilePath ?? "",
+        sourceUrl: ep.sourceUrl,
+        sourcePlatform: ep.sourcePlatform,
+        transcriptOriginalUrl: ep.transcriptOriginalUrl,
+      });
+    } catch (err) {
+      // Only unavailable transcript access should trigger a paid audio path.
+      // Validation, DB, or stale-generation failures must preserve existing data
+      // and must not schedule a download as if captions were unavailable.
+      if (!ep.audioFilePath && await queueAudioFallbackDownload(episodeId, jobId, expectedSegmentIds, (err as Error).message)) {
+        throw new Error(`${(err as Error).message} — queued audio download so Whisper can retry`);
+      }
+      throw err;
+    }
     await updateJobProgress(jobId, 80);
 
     await saveTranscriptSegments({
@@ -64,27 +76,15 @@ export async function runTranscriptionJob(jobId: string, episodeId: string) {
       transcriptSourceType: resolved.transcriptSourceType,
       segments: resolved.segments,
       replace: true,
+      expectedSegmentIds,
+      processingJobId: jobId,
+      nextJobType: "transcript_segmentation",
     });
-
-    await markEpisodeTranscribed(episodeId);
-    await updateJobProgress(jobId, 100);
+    // Persistence committed text, readiness, job completion and successor.
     return { segments: resolved.segments.length };
   } catch (err: any) {
-    const reason = err?.message ?? "Transcription failed";
-
-    // Captions / feed transcript were expected to cover this episode, so the
-    // pipeline skipped the audio download. They didn't pan out — fall back to
-    // fetching audio for Whisper instead of killing the episode outright.
-    if (!ep.audioFilePath) {
-      const queued = await queueAudioFallbackDownload(episodeId);
-      if (queued) {
-        const msg = `${reason} — queued audio download so Whisper can retry`;
-        await markJobFailed(jobId, msg);
-        throw new Error(msg);
-      }
-    }
-
-    await markJobFailed(jobId, reason);
+    if (err instanceof TranscriptChangedError || await isSupersededTranscriptJob(db, jobId)) throw new TranscriptChangedError();
+    await markJobFailed(jobId, err?.message ?? "Transcription failed");
     throw err;
   }
 }
@@ -141,11 +141,13 @@ export async function runSegmentationJob(jobId: string, episodeId: string) {
       transcriptSourceType,
       segments: packed,
       replace: true,
+      expectedSegmentIds: existing.map((s) => s.id),
+      processingJobId: jobId,
+      nextJobType: "embedding",
     });
-
-    await updateJobProgress(jobId, 100);
     return { segments: packed.length };
   } catch (err: any) {
+    if (err instanceof TranscriptChangedError || await isSupersededTranscriptJob(db, jobId)) throw new TranscriptChangedError();
     await markJobFailed(jobId, err?.message ?? "Segmentation failed");
     throw err;
   }

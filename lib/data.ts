@@ -829,6 +829,7 @@ export async function getSegmentsForEpisode(
 // ─── Processing jobs ──────────────────────────────────────────────────────
 
 export type ProcessingJobBucket = {
+  error?: string;
   active: ProcessingJobView[];
   queued: ProcessingJobView[];
   failed: ProcessingJobView[];
@@ -966,8 +967,9 @@ export async function getProcessingJobs(): Promise<ProcessingJobBucket> {
       },
     };
   } catch (err) {
-    logError("getProcessingJobs", err);
+    logError("getProcessingJobs", new Error("Queue database read failed"));
     return {
+      error: "Processing queue is temporarily unavailable.",
       active: [],
       queued: [],
       failed: [],

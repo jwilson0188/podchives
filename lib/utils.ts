@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { createElement, type ReactNode } from "react";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -77,12 +78,14 @@ export function truncate(text: string, max = 280): string {
   return text.slice(0, max - 1).trimEnd() + "…";
 }
 
-export function highlight(text: string, query: string): string {
+/** React text nodes only: external transcript/query strings are never HTML. */
+export function highlight(text: string, query: string): ReactNode {
   if (!query) return text;
   const safe = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return text.replace(
-    new RegExp(`(${safe})`, "ig"),
-    '<mark class="search-hit">$1</mark>',
+  return text.split(new RegExp(`(${safe})`, "ig")).map((part, index) =>
+    index % 2 === 1
+      ? createElement("mark", { className: "search-hit", key: index }, part)
+      : part,
   );
 }
 

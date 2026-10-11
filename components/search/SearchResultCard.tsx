@@ -63,10 +63,9 @@ export function SearchResultCard({
       <div className="border-l-2 border-line-strong pl-4 py-0.5 mb-3">
         <p
           className="text-[15px] leading-relaxed text-text-primary"
-          dangerouslySetInnerHTML={{
-            __html: highlight(result.transcriptText, query),
-          }}
-        />
+        >
+          {highlight(result.transcriptText, query)}
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

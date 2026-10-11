@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+import { withActiveJob } from "@/lib/jobControl";
 /**
  * YouTube ingestion worker.
  *
@@ -16,7 +18,6 @@ import {
   type YouTubeChannel,
 } from "@/lib/youtube";
 import {
-  markJobCompleted,
   markJobFailed,
   getQueueLimits,
   queueEpisodeProcessingIfNeeded,
@@ -24,14 +25,13 @@ import {
 } from "@/lib/queue";
 
 async function updatePodcastBranding(
+  db: Prisma.TransactionClient,
   podcastId: string,
   channel: Pick<
     YouTubeChannel,
     "channelName" | "thumbnailUrl" | "description" | "channelUrl"
   >,
 ) {
-  const { getDb } = await import("@/lib/db");
-  const db = getDb();
   const data: {
     name?: string;
     coverImageUrl?: string;
@@ -56,16 +56,18 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
     return;
   }
 
-  await db.source.update({
-    where: { id: sourceId },
-    data: { syncStatus: "syncing" },
-  });
-  await db.sourceSyncJob.create({
-    data: {
-      sourceId,
-      status: "running",
-      startedAt: new Date(),
-    },
+  const syncRun = await withActiveJob(db, jobId, { sourceId }, async (tx) => {
+    await tx.source.update({
+      where: { id: sourceId },
+      data: { syncStatus: "syncing" },
+    });
+    return tx.sourceSyncJob.create({
+      data: {
+        sourceId,
+        status: "running",
+        startedAt: new Date(),
+      },
+    });
   });
 
   try {
@@ -96,7 +98,7 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
     }
 
     if (channelMeta) {
-      await updatePodcastBranding(source.podcastId, channelMeta);
+      await withActiveJob(db, jobId, { sourceId }, (tx) => updatePodcastBranding(tx, source.podcastId, channelMeta!));
     }
 
     let added = 0;
@@ -107,7 +109,7 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
       const v = videos[i];
       const meta = buildEpisodeMetadata(v);
 
-      const ep = await db.episode.upsert({
+      const ep = await withActiveJob(db, jobId, { sourceId }, (tx) => tx.episode.upsert({
         where: {
           sourceId_externalId: {
             sourceId,
@@ -120,12 +122,12 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
           podcastId: source.podcastId,
           sourceId,
         },
-      });
+      }));
 
       if (added >= maxEpisodesQueuedPerSync) {
         deferred++;
       } else {
-        const queued = await queueEpisodeProcessingIfNeeded(ep.id);
+        const queued = await queueEpisodeProcessingIfNeeded(ep.id, jobId);
         if (queued) added++;
         else if (!ep.audioFilePath && !ep.isSearchable) deferred++;
       }
@@ -142,35 +144,18 @@ export async function runYouTubeSourceSyncJob(jobId: string, sourceId: string) {
       );
     }
 
-    await db.source.update({
-      where: { id: sourceId },
-      data: {
-        syncStatus: "completed",
-        lastSyncedAt: new Date(),
-      },
+    await withActiveJob(db, jobId, { sourceId }, async (tx) => {
+      await tx.source.update({ where: { id: sourceId }, data: { syncStatus: "completed", lastSyncedAt: new Date() } });
+      await tx.sourceSyncJob.update({ where: { id: syncRun.id }, data: { status: "completed", completedAt: new Date() } });
+      await tx.processingJob.update({ where: { id: jobId }, data: { status: "completed", progressPercent: 100, errorMessage: null, completedAt: new Date() } });
     });
-
-    await db.sourceSyncJob.updateMany({
-      where: { sourceId, status: "running" },
-      data: { status: "completed", completedAt: new Date() },
-    });
-
-    await markJobCompleted(jobId);
     return { episodesFound: videos.length, episodesQueued: added, deferred };
   } catch (err: any) {
-    await db.sourceSyncJob.updateMany({
-      where: { sourceId, status: "running" },
-      data: {
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage: err?.message ?? "Unknown error",
-      },
+    await withActiveJob(db, jobId, { sourceId }, async (tx) => {
+      await tx.sourceSyncJob.update({ where: { id: syncRun.id }, data: { status: "failed", completedAt: new Date(), errorMessage: err?.message ?? "Unknown error" } });
+      await tx.source.update({ where: { id: sourceId }, data: { syncStatus: "error" } });
+      await tx.processingJob.update({ where: { id: jobId }, data: { status: "failed", completedAt: new Date(), errorMessage: err?.message ?? "Unknown error" } });
     });
-    await db.source.update({
-      where: { id: sourceId },
-      data: { syncStatus: "error" },
-    });
-    await markJobFailed(jobId, err?.message ?? "Unknown error");
     throw err;
   }
 }

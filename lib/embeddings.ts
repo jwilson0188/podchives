@@ -1,3 +1,4 @@
+import { withActiveJob } from "./jobControl";
 /**
  * Embedding service.
  *
@@ -8,6 +9,7 @@
  * Unsupported() vector column.
  */
 import OpenAI from "openai";
+import { finishTranscriptEmbedding, TranscriptChangedError } from "./transcriptIntegrity";
 
 const EMBED_MODEL = "text-embedding-3-small";
 export const EMBED_DIMS = 1536;
@@ -67,6 +69,7 @@ export async function generateEmbeddingsWithUsage(
 export async function generateSegmentEmbeddings(
   episodeId: string,
   batchSize = 64,
+  jobId?: string,
 ): Promise<{ embedded: number; tokens: number }> {
   const { getDb } = await import("./db");
   const db = getDb();
@@ -79,18 +82,19 @@ export async function generateSegmentEmbeddings(
   let embedded = 0;
   let totalTokens = 0;
   for (let i = 0; i < segs.length; i += batchSize) {
+    if (jobId) await withActiveJob(db, jobId, { episodeId }, async () => undefined);
     const slice = segs.slice(i, i + batchSize);
     const { vectors, tokens } = await generateEmbeddingsWithUsage(
       slice.map((s) => s.transcriptText),
     );
     totalTokens += tokens;
     for (let j = 0; j < slice.length; j++) {
-      await saveSegmentEmbedding(slice[j].id, vectors[j]);
+      await saveSegmentEmbedding(slice[j].id, vectors[j], jobId ? { jobId, episodeId } : undefined);
       embedded++;
     }
   }
 
-  await markEpisodeEmbedded(episodeId, totalTokens);
+  await markEpisodeEmbedded(episodeId, totalTokens, segs.map((s) => s.id), jobId);
   return { embedded, tokens: totalTokens };
 }
 
@@ -101,30 +105,27 @@ export async function generateSegmentEmbeddings(
 export async function saveSegmentEmbedding(
   segmentId: string,
   embedding: number[],
+  job?: { jobId: string; episodeId: string },
 ): Promise<void> {
   const { getDb } = await import("./db");
   const db = getDb();
-  if (embedding.length === 0) return;
+  if (!Array.isArray(embedding) || embedding.length !== EMBED_DIMS || !embedding.every(Number.isFinite)) {
+    throw new Error(`Embedding must contain ${EMBED_DIMS} finite values`);
+  }
   const vectorLiteral = `[${embedding.join(",")}]`;
-  await db.$executeRawUnsafe(
-    `UPDATE transcript_segments SET transcript_embedding = $1::vector WHERE id = $2`,
-    vectorLiteral,
-    segmentId,
+  const write = (client: Pick<typeof db, "$executeRawUnsafe">) => client.$executeRawUnsafe(
+    `UPDATE transcript_segments SET transcript_embedding = $1::vector WHERE id = $2`, vectorLiteral, segmentId,
   );
+  const updated = job ? await withActiveJob(db, job.jobId, { episodeId: job.episodeId }, write) : await write(db);
+  if (updated !== 1) throw new TranscriptChangedError();
 }
 
 export async function markEpisodeEmbedded(
   episodeId: string,
-  tokens = 0,
+  tokens: number,
+  expectedSegmentIds: readonly string[],
+  jobId?: string,
 ): Promise<void> {
   const { getDb } = await import("./db");
-  const db = getDb();
-  await db.episode.update({
-    where: { id: episodeId },
-    data: {
-      isEmbedded: true,
-      embeddingStatus: "completed",
-      ...(tokens > 0 ? { embeddingTokens: tokens } : {}),
-    },
-  });
+  await finishTranscriptEmbedding(getDb(), episodeId, expectedSegmentIds, tokens, jobId);
 }

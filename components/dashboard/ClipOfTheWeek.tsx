@@ -84,10 +84,9 @@ export function ClipOfTheWeek({ clip }: { clip: FeaturedClip }) {
             <blockquote className="mt-3 border-l-2 border-line-strong pl-4 py-0.5">
               <p
                 className="text-[0.9375rem] leading-relaxed text-ink-secondary line-clamp-4 sm:line-clamp-3"
-                dangerouslySetInnerHTML={{
-                  __html: highlight(clip.transcriptText, clip.searchQuery),
-                }}
-              />
+              >
+                {highlight(clip.transcriptText, clip.searchQuery)}
+              </p>
             </blockquote>
 
             <div className="mt-4 flex flex-wrap gap-2">

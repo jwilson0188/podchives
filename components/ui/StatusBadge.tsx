@@ -12,6 +12,9 @@ const STATUS_STYLES: Record<JobStatus | string, string> = {
   indexing: "bg-warn-muted text-warn",
   completed: "bg-success-muted text-success",
   failed: "bg-danger-muted text-danger",
+  stopped: "bg-bg-elevated text-text-muted border border-border",
+  cancelled: "bg-bg-elevated text-text-muted border border-border",
+  superseded: "bg-bg-elevated text-text-muted border border-border",
   idle: "bg-bg-elevated text-text-muted border border-border",
   syncing: "bg-cyan-muted text-cyan",
   error: "bg-danger-muted text-danger",
@@ -45,7 +48,7 @@ export function StatusBadge({
   const cls = STATUS_STYLES[status] ?? STATUS_STYLES.queued;
   const label = STATUS_LABELS[status] ?? status;
   const isActive =
-    status !== "completed" && status !== "failed" && status !== "queued" && status !== "idle";
+    status !== "completed" && status !== "failed" && status !== "queued" && status !== "idle" && status !== "stopped" && status !== "cancelled" && status !== "superseded";
   const showPulse = pulse ?? isActive;
 
   return (
