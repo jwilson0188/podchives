@@ -1,3 +1,5 @@
+import { DownloadActions } from "./DownloadActions";
+import { processingJobPresentation } from "@/lib/processingJobPresentation";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -56,7 +58,7 @@ export function DownloadManagerTable({
 
               <div className="mt-3">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <StatusBadge status={d.status} />
+                  <StatusBadge status={processingJobPresentation(d).status} />
                   <span className="text-[0.8125rem] text-text-muted font-mono tabular-nums">
                     {d.progressPercent}%
                   </span>
@@ -64,7 +66,9 @@ export function DownloadManagerTable({
                 <ProgressBar
                   value={d.progressPercent}
                   status={
-                    d.status === "failed"
+                    processingJobPresentation(d).inactive
+                      ? "queued"
+                      : d.status === "failed"
                       ? "failed"
                       : d.status === "completed"
                         ? "completed"
@@ -76,11 +80,7 @@ export function DownloadManagerTable({
               </div>
 
               <div className="mt-3 flex gap-2">
-                {d.status === "failed" ? (
-                  <button className="btn-danger text-xs flex-1">Retry</button>
-                ) : d.status === "completed" ? null : (
-                  <button className="btn-ghost text-xs flex-1">Cancel</button>
-                )}
+                <DownloadActions download={d} />
               </div>
             </article>
           );
@@ -141,7 +141,7 @@ export function DownloadManagerTable({
                     </td>
                     <td className="px-3 py-3 min-w-[160px]">
                       <div className="flex items-center gap-2">
-                        <StatusBadge status={d.status} />
+                        <StatusBadge status={processingJobPresentation(d).status} />
                         <span className="text-[0.8125rem] text-text-muted font-mono tabular-nums">
                           {d.progressPercent}%
                         </span>
@@ -149,7 +149,9 @@ export function DownloadManagerTable({
                       <ProgressBar
                         value={d.progressPercent}
                         status={
-                          d.status === "failed"
+                          processingJobPresentation(d).inactive
+                      ? "queued"
+                      : d.status === "failed"
                             ? "failed"
                             : d.status === "completed"
                               ? "completed"
@@ -178,13 +180,7 @@ export function DownloadManagerTable({
                       )}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      {d.status === "failed" ? (
-                        <button className="btn-danger text-xs">Retry</button>
-                      ) : d.status === "completed" ? (
-                        <span className="text-[0.8125rem] text-text-muted">—</span>
-                      ) : (
-                        <button className="btn-ghost text-xs">Cancel</button>
-                      )}
+                      <DownloadActions download={d} />
                     </td>
                   </tr>
                 );

@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/transcript-integrity.test.ts tests/transcript-integrity.integration.test.ts tests/transcript-display.test.ts tests/youtube-captions.test.ts tests/queue-transitions.test.ts tests/queue-polling.test.ts tests/processing-job-controls.test.ts tests/queue-admission.test.ts",
+    "test": "node --import tsx --test tests/transcript-integrity.test.ts tests/transcript-integrity.integration.test.ts tests/transcript-display.test.ts tests/youtube-captions.test.ts tests/queue-transitions.test.ts tests/download-snapshot.test.ts tests/queue-polling.test.ts tests/processing-job-controls.test.ts tests/queue-admission.test.ts",
     "test:postgres": "node scripts/test-transcript-postgres.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

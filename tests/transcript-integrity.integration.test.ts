@@ -1,3 +1,4 @@
+import { retryDownload, stopDownloadEpisode } from "../lib/downloadControl";
 import { withActiveJob, writeJobProgress, retryJob, JobRetryError } from "../lib/jobControl";
 import { PipelineJobNotActiveError } from "../lib/queueTransitions";
 import { admitSourceSync, admitAudioFallback, retryAutomaticFailures } from "../lib/queueControl";
@@ -70,6 +71,67 @@ test("PostgreSQL transcript integrity (explicit disposable database only)", { sk
         await db.podcast.delete({ where: { id: podcast.id } });
       }
     }
+
+    async function downloadFixture(episodeId: string, status = "failed", createdAt = new Date()) {
+      const ep = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
+      return db.download.create({ data: { episodeId, sourceId: ep.sourceId, downloadType: "audio", status, createdAt } });
+    }
+    await t.test("download retry resolves a unique failed job and prevents duplicate admissions", () => withFixture(async (args) => {
+      const dl = await downloadFixture(args.episodeId);
+      const job = await db.processingJob.create({ data: { episodeId: args.episodeId, jobType: "download", status: "failed" } });
+      const results = await Promise.allSettled([retryDownload(db, dl.id), retryDownload(db, dl.id)]);
+      assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+      assert.equal(await db.processingJob.count({ where: { episodeId: args.episodeId, status: "queued" } }), 1);
+      assert.match((await db.processingJob.findUniqueOrThrow({ where: { id: job.id } })).errorMessage!, /^superseded:/);
+    }));
+    await t.test("download retry rejects missing or ambiguous job mapping", () => withFixture(async (args) => {
+      const dl = await downloadFixture(args.episodeId);
+      await assert.rejects(retryDownload(db, "missing"), (err: unknown) => err instanceof JobRetryError && err.status === 404);
+      await assert.rejects(retryDownload(db, dl.id), JobRetryError);
+      await db.processingJob.createMany({ data: [1, 2].map(() => ({ episodeId: args.episodeId, jobType: "download", status: "failed" })) });
+      const before = await snapshot(args.episodeId);
+      await assert.rejects(retryDownload(db, dl.id), JobRetryError);
+      assert.deepEqual(await snapshot(args.episodeId), before);
+    }));
+    await t.test("historical download controls cannot affect a newer attempt", () => withFixture(async (args) => {
+      const old = await downloadFixture(args.episodeId, "failed", new Date(1000));
+      await downloadFixture(args.episodeId, "downloading", new Date(2000));
+      await db.processingJob.create({ data: { episodeId: args.episodeId, jobType: "download", status: "failed" } });
+      const before = await snapshot(args.episodeId);
+      await assert.rejects(retryDownload(db, old.id), JobRetryError);
+      await assert.rejects(stopDownloadEpisode(db, old.id), JobRetryError);
+      assert.deepEqual(await snapshot(args.episodeId), before);
+    }));
+    await t.test("download stop preserves transcript and other episodes", () => withFixture(async (args) => {
+      const dl = await downloadFixture(args.episodeId, "downloading");
+      const ep = await db.episode.findUniqueOrThrow({ where: { id: args.episodeId } });
+      const other = await db.episode.create({ data: { podcastId: ep.podcastId, sourceId: ep.sourceId, externalId: randomUUID(), episodeTitle: "Other", sourceUrl: ep.sourceUrl, sourcePlatform: "youtube" } });
+      const unrelated = await db.processingJob.create({ data: { episodeId: other.id, jobType: "download", status: "queued" } });
+      await db.processingJob.createMany({ data: ["download", "transcription"].map((jobType) => ({ episodeId: ep.id, jobType, status: jobType === "download" ? "downloading" : "queued" })) });
+      const before = await snapshot(ep.id);
+      await stopDownloadEpisode(db, dl.id);
+      const after = await snapshot(ep.id);
+      assert.deepEqual(after.episode, before.episode); assert.deepEqual(after.segments, before.segments);
+      assert.equal(await db.processingJob.count({ where: { episodeId: ep.id, errorMessage: "Stopped by user" } }), 2);
+      assert.equal((await db.processingJob.findUniqueOrThrow({ where: { id: unrelated.id } })).status, "queued");
+      assert.deepEqual(await stopDownloadEpisode(db, dl.id), { stopped: true });
+    }));
+    await t.test("download stop failure rolls back job cancellation", () => withFixture(async (args) => {
+      const dl = await downloadFixture(args.episodeId, "downloading");
+      await db.processingJob.create({ data: { episodeId: args.episodeId, jobType: "download", status: "downloading" } });
+      const before = await snapshot(args.episodeId);
+      await assert.rejects(stopDownloadEpisode(failingClient(db, "download", "updateMany"), dl.id), /Injected/);
+      assert.deepEqual(await snapshot(args.episodeId), before);
+      assert.equal((await db.download.findUniqueOrThrow({ where: { id: dl.id } })).status, "downloading");
+    }));
+    await t.test("repeated stop cannot report success over manually resumed work", () => withFixture(async (args) => {
+      const dl = await downloadFixture(args.episodeId, "downloading");
+      await db.processingJob.create({ data: { episodeId: args.episodeId, jobType: "download", status: "downloading" } });
+      await stopDownloadEpisode(db, dl.id);
+      await retryDownload(db, dl.id);
+      await assert.rejects(stopDownloadEpisode(db, dl.id), JobRetryError);
+      assert.equal(await db.processingJob.count({ where: { episodeId: args.episodeId, status: "queued" } }), 1);
+    }));
 
     await t.test("stop fences running media publication, progress and successors", () => withFixture(async (args) => {
       const ep = await db.episode.findUniqueOrThrow({ where: { id: args.episodeId } });

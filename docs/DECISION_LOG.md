@@ -39,3 +39,11 @@ Keep existing status storage and buckets; interpret stop/cancel/supersession mar
 ## 2026-10-10 — Queue read errors and isolated polling
 
 Keep the existing queue data shape with an optional unavailable marker so unrelated dashboard callers remain compatible. The queue endpoint exposes 503 and its page explicitly distinguishes unavailable, stale and successfully empty snapshots. Use a queue-specific hook rather than changing all shared polling consumers in this bounded fix. Serial requests and cleanup guards prevent old responses overwriting refreshed state.
+
+## 2026-10-11 — Download controls without guessed job ownership
+
+Keep the current schema. Permit retry only with one failed download-job candidate and current latest-download evidence rechecked inside the retry transaction; ambiguous history returns 409 with a Processing Queue link. Expose cancellation as Stop episode processing because downstream jobs must stop too. Scope to that episode and preserve saved transcripts. Exact download-to-job linkage remains an additive future improvement.
+
+## 2026-10-11 — Download snapshots and bulk-action scope
+
+Use strict reads for the Download Manager snapshot while preserving unrelated callers. Reuse the tested serial polling controller; fetch referenced episode IDs instead of relying on a truncated episode catalog. Replace inactive bulk sync with the existing Sources navigation rather than adding an unbounded ingestion action. Limits are explicitly displayed; no new infrastructure or schema.

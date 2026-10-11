@@ -1,6 +1,28 @@
 # Podchives current state
 
-Audit date: **2026-10-09 (America/Chicago)**. Baseline: `codex-refactor`, commit `cf83fa6` (`Merge pull request #20 from jwilson0188/fix/search-fetch-loop`). Updated through autonomous M3 downstream and media handoff fixes (2026-10-10). Application changes remain local; the application schema, .env and production data were not changed. Milestone 1B installed a native test database runtime and provisioned only disposable test clusters.
+Audit date: **2026-10-09 (America/Chicago)**. Baseline: `codex-refactor`, commit `cf83fa6` (`Merge pull request #20 from jwilson0188/fix/search-fetch-loop`). Updated through autonomous M3 downstream and media handoff fixes (2026-10-10). Check Git for branch publication status; the application schema, .env and production data were not changed. Milestone 1B installed a native test database runtime and provisioned only disposable test clusters.
+
+## Download Manager read reliability — 2026-10-11
+
+The manager now loads a labelled snapshot through strict download/source/episode reads; any failed read produces explicit unavailability instead of an apparently empty archive. Its no-store live endpoint returns sanitized 503 errors. A serial client poll uses the established four-second interval-after-completion, 15-second timeout, visibility pause and cleanup guards, preserving the last successful snapshot during failures and server refresh errors. The snapshot refreshes download states, associated episode readiness, sources and displayed counts together. Other data-layer callers retain their existing fallback behavior.
+
+Readiness queries now fetch the episodes actually referenced by displayed downloads, including older episodes outside the previous 500-episode listing. Summary labels explicitly describe displayed records, and the 200-download cap/caption-only exclusion are visible. Demo data is explicitly labelled. The inert Sync all sources button was replaced with Manage sources linking to existing per-source controls; no bulk ingestion was introduced.
+
+Verification: six new snapshot tests cover referenced IDs, each read-failure stage, empty-vs-unavailable and demo labelling. **148 unit + 73 PostgreSQL cases = 222 including parent; zero failures/skips.** Fixture cleanup and cluster removal verified. Typecheck, safe demo production build, Prisma validation and targeted lint pass. lib/data.ts retains the existing 22 helper-name hook-rule errors, with no additional reports. Browser checks verified unavailable UI against a dummy unreachable database, demo labels/displayed counts and navigation to Sources. HTTP check confirmed sanitized 503 and no-store. Browser outage-to-real-DB recovery remains unverified; polling recovery has deterministic tests. No production data, paid jobs, migrations or deployments.
+
+Download retry/stop controls and this reliability increment are prepared together for publication on codex-refactor after 60d0c1e. Remaining: exact download/job association, dashboard degraded-state handling, general attempt ownership/leases, and bounded real-video acceptance with an isolated target and approved provider budget. No live searchable-archive checkpoint has been claimed.
+
+## Download Manager controls — 2026-10-11
+
+Download Manager now exposes Retry download and Stop episode processing through explicit POST endpoints. Shared desktop/mobile action components show pending/error/success states, reject duplicate local clicks, refresh server data after real success, and distinguish demo acknowledgements from real mutations. Stopped download badges/progress use neutral presentation.
+
+Download rows have no processing-job foreign key. Retry therefore fails closed unless one failed download job can be identified; its latest-download identity, status, timestamp ambiguity and candidate count are rechecked under the existing Source → Episode transaction before the validated fresh-ID retry. Historical/ambiguous rows return 409 and direct users to Processing Queue. No guessed nearest-timestamp association is used.
+
+Stop is deliberately labelled at episode scope: under Source → Episode locks it stops queued/running episode jobs and active download records, retaining transcript/media database state and leaving other episodes unchanged. It rejects obsolete/completed rows. Repeated stop is idempotent only while no resumed active work exists. It does not terminate external subprocesses, change source auto-sync, or delete files/transcripts.
+
+Verification: **142 unit + 73 real PostgreSQL cases = 216 including parent; zero failures/skips.** Six new DB cases cover unique/concurrent retry, missing/ambiguous mapping, historical rows, episode isolation/transcript preservation, rollback and stop-after-resume rejection. Fixture cleanup/server shutdown verified. Typecheck and targeted lint passed before browser testing; Prisma validation passed. Safe demo production build and the final TypeScript typecheck also passed. Browser verified Retry on the demo Download Manager and Stop using the same component on a temporary demo-only fixture page; both showed disabled pending state and no-real-mutation acknowledgement. Fixture page was removed before build. Demo screenshots are temporary local evidence at /private/tmp/podchives-download-retry.png and /private/tmp/podchives-download-stop.png. No migrations, provider jobs, production writes or deployment.
+
+Remaining: no browser-to-real-DB control test; download history remains unlinked to exact job IDs, so ambiguous legacy histories need Processing Queue. Download Manager still lacks live polling, has error-to-empty read fallbacks and an unwired Sync all sources button. Implemented after pushed commit 60d0c1e; production deployment remains unverified. Next routine work: honest Download Manager read failures and status refresh, before broader sync controls.
 
 ## Queue read failures and snapshot recovery — 2026-10-10
 

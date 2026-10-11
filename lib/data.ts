@@ -1,3 +1,4 @@
+import { loadDownloadSnapshot } from "./downloadSnapshot";
 /**
  * Unified data layer.
  *
@@ -510,7 +511,7 @@ export async function getAutoSyncSummary(): Promise<{
   }
 }
 
-export async function getSources(): Promise<SourceView[]> {
+export async function getSources(strict = false): Promise<SourceView[]> {
   if (useDemoData()) return demoSources;
   try {
     const db = getDb();
@@ -533,6 +534,7 @@ export async function getSources(): Promise<SourceView[]> {
       }),
     );
   } catch (err) {
+    if (strict) throw new Error("Download Manager data unavailable");
     logError("getSources", err);
     return [];
   }
@@ -551,6 +553,7 @@ export async function getSourcesWithRetry(): Promise<SourceView[]> {
 // ─── Episodes ─────────────────────────────────────────────────────────────
 
 export type EpisodeFilters = {
+  ids?: string[];
   archiveId?: string;
   status?: "searchable" | "failed" | "processing";
   limit?: number;
@@ -558,9 +561,11 @@ export type EpisodeFilters = {
 
 export async function getEpisodes(
   filters: EpisodeFilters = {},
+  strict = false,
 ): Promise<EpisodeView[]> {
   if (useDemoData()) {
     let episodes = demoEpisodes;
+    if (filters.ids) episodes = episodes.filter((ep) => filters.ids!.includes(ep.id));
     if (filters.archiveId)
       episodes = episodes.filter((e) => e.podcastId === filters.archiveId);
     if (filters.status === "searchable")
@@ -580,6 +585,7 @@ export async function getEpisodes(
   try {
     const db = getDb();
     const where: any = {};
+    if (filters.ids) where.id = { in: filters.ids };
     if (filters.archiveId) where.podcastId = filters.archiveId;
     if (filters.status === "searchable") where.isSearchable = true;
     if (filters.status === "failed") where.processingStatus = "failed";
@@ -595,6 +601,7 @@ export async function getEpisodes(
     });
     return rows.map(toEpisodeView);
   } catch (err) {
+    if (strict) throw new Error("Download Manager data unavailable");
     logError("getEpisodes", err);
     return [];
   }
@@ -1012,7 +1019,7 @@ export async function getActiveProcessingJobs(): Promise<ProcessingJobView[]> {
 
 // ─── Downloads ────────────────────────────────────────────────────────────
 
-export async function getDownloads(): Promise<DownloadView[]> {
+export async function getDownloads(strict = false): Promise<DownloadView[]> {
   if (useDemoData()) return demoDownloads;
   try {
     const db = getDb();
@@ -1041,6 +1048,7 @@ export async function getDownloads(): Promise<DownloadView[]> {
       }),
     );
   } catch (err) {
+    if (strict) throw new Error("Download Manager data unavailable");
     logError("getDownloads", err);
     return [];
   }
@@ -1476,4 +1484,22 @@ export async function runSearch(
     logError("runSearch", err);
     return [];
   }
+}
+
+
+export type DownloadManagerSnapshot = {
+  downloads: DownloadView[];
+  episodes: EpisodeView[];
+  sources: SourceView[];
+  demo: boolean;
+  error?: string;
+};
+
+/** A partial read must not masquerade as a complete, empty manager. */
+export async function getDownloadManagerSnapshot(): Promise<DownloadManagerSnapshot> {
+  return loadDownloadSnapshot({
+    downloads: () => getDownloads(true),
+    sources: () => getSources(true),
+    episodes: (ids) => getEpisodes({ ids, limit: ids.length }, true),
+  }, getDataMode() === "demo");
 }

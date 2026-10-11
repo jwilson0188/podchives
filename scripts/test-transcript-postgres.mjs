@@ -96,7 +96,7 @@ try {
   sql("CREATE INDEX transcript_segments_fts_idx ON transcript_segments USING gin (to_tsvector('english', transcript_text))");
   sql("CREATE INDEX transcript_segments_embedding_idx ON transcript_segments USING hnsw (transcript_embedding vector_cosine_ops)");
   console.log("Fresh schema, GIN FTS and HNSW vector indexes ready; running unit + PostgreSQL suites.");
-  run(process.execPath, ["--import", "tsx", "--test", "tests/transcript-integrity.test.ts", "tests/transcript-integrity.integration.test.ts", "tests/transcript-display.test.ts", "tests/youtube-captions.test.ts", "tests/queue-transitions.test.ts", "tests/queue-polling.test.ts", "tests/processing-job-controls.test.ts", "tests/queue-admission.test.ts"], { cwd: root });
+  run(process.execPath, ["--import", "tsx", "--test", "tests/transcript-integrity.test.ts", "tests/transcript-integrity.integration.test.ts", "tests/transcript-display.test.ts", "tests/youtube-captions.test.ts", "tests/queue-transitions.test.ts", "tests/download-snapshot.test.ts", "tests/queue-polling.test.ts", "tests/processing-job-controls.test.ts", "tests/queue-admission.test.ts"], { cwd: root });
   const remaining = sql("SELECT (SELECT count(*) FROM podcasts) + (SELECT count(*) FROM sources) + (SELECT count(*) FROM episodes) + (SELECT count(*) FROM transcript_segments) + (SELECT count(*) FROM processing_jobs)");
   if (remaining !== "0") throw new Error("Integration fixtures were not fully cleaned up");
   console.log("Fixture cleanup verified: 0 podcast/source/episode/transcript/job rows remain.");

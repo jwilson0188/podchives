@@ -28,7 +28,7 @@ export class JobRetryError extends Error {
 }
 
 /** Retire the failed identity; never make a stopped worker's ID active again. */
-export async function retryJob(db: PrismaClient, jobId: string) {
+export async function retryJob(db: PrismaClient, jobId: string, downloadId?: string) {
   const initial = await db.processingJob.findUnique({ where: { id: jobId }, include: { episode: { select: { sourceId: true } } } });
   if (!initial) throw new JobRetryError("Job not found", 404);
   const sourceId = initial.episode?.sourceId ?? initial.sourceId;
@@ -39,6 +39,14 @@ export async function retryJob(db: PrismaClient, jobId: string) {
     const job = await tx.processingJob.findUnique({ where: { id: jobId } });
     if (!job) throw new JobRetryError("Job not found", 404);
     if (job.status !== "failed" || job.errorMessage?.startsWith("superseded:") || job.errorMessage?.startsWith("cancelled:")) throw new JobRetryError("Only current failed or user-stopped jobs can be retried", 409);
+    if (downloadId) {
+      const download = await tx.download.findUnique({ where: { id: downloadId } });
+      const latest = await tx.download.findMany({ where: { episodeId: job.episodeId ?? "" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 2 });
+      const candidates = await tx.processingJob.findMany({ where: { episodeId: job.episodeId, jobType: "download", status: "failed" }, select: { id: true } });
+      if (!download || download.episodeId !== job.episodeId || download.status !== "failed" || job.jobType !== "download"
+        || latest[0]?.id !== downloadId || (latest[1] && latest[1].createdAt.getTime() === latest[0].createdAt.getTime())
+        || candidates.length !== 1 || candidates[0].id !== jobId) throw new JobRetryError("Download history changed; use Processing Queue to select the job", 409);
+    }
     const scope = job.episodeId ? { episodeId: job.episodeId } : { sourceId: job.sourceId, jobType: "source_sync" };
     if (!job.episodeId && (!job.sourceId || job.jobType !== "source_sync")) throw new JobRetryError("Job has no retryable target", 409);
     const newer = await tx.processingJob.findFirst({ where: { ...scope, id: { not: jobId }, OR: [
